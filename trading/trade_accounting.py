@@ -200,7 +200,7 @@ class TradeAccounting:
                 new_cost = old_cost + gross + fee_value_quote
                 realized_delta = 0.0
             else:
-                sell_qty = min(qty, old_qty) if old_qty > 0 else 0.0
+                sell_qty = min(delta_qty, old_qty) if old_qty > 0 else 0.0
                 avg_cost = old_cost / old_qty if old_qty > 0 else 0.0
                 cost_removed = avg_cost * sell_qty
                 realized_delta = (gross - fee_value_quote - cost_removed) if sell_qty > 0 else 0.0
