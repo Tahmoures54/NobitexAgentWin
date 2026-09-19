@@ -76,7 +76,7 @@ For a real-market observation session, the repository includes a **read-only** r
 py tools/nobitex_paper_capture.py --hours 8 --interval 15 --top 40
 ```
 
-The default output is `data/nobitex_paper_capture.csv`. The recorder only uses public market/order-book endpoints and filters candidates at **3% 1-hour change** by default. Keep the normal application in **paper** execution mode while testing.
+The default output is `data/nobitex_paper_capture.csv`. The recorder only uses public market/order-book endpoints and filters candidates at **3% reported market change** by default. Keep the normal application in **paper** execution mode while testing.
 
 ## Run
 
