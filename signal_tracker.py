@@ -427,7 +427,7 @@ class SignalTracker:
     # RECONCILE
     # ══════════════════════════════════════════════════════════════
 
-    def reconcile_open_positions(self) -> Dict[str, int]:
+    def reconcile_open_positions(self, balance_snapshot: Optional[Dict[str, float]] = None) -> Dict[str, int]:
         result = {"checked": 0, "closed_phantom": 0, "kept": 0, "resized": 0}
         if self.mode != "real" or not self.executor:
             return result
@@ -445,8 +445,17 @@ class SignalTracker:
 
         logger.info("Reconciling open positions with exchange balances...")
 
-        # FIX D: single snapshot
-        snapshot = self._get_balances_snapshot()
+        # FIX D: single snapshot. A Portfolio Manager snapshot may be
+        # supplied by the caller so the wallet endpoint is not hit twice
+        # in the same reconciliation cycle.
+        snapshot = balance_snapshot
+        if snapshot is not None:
+            try:
+                snapshot = {str(k).upper(): float(v) for k, v in snapshot.items()}
+            except (TypeError, ValueError):
+                snapshot = None
+        if snapshot is None:
+            snapshot = self._get_balances_snapshot()
 
         phantoms: List[Tuple[Dict[str, Any], float]] = []
         resizes: List[Tuple[Dict[str, Any], float]] = []
