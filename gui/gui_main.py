@@ -1197,7 +1197,7 @@ class CryptoScannerApp:
                         min_depth = float(getattr(cfg, "min_ask_depth_quote", 0.0) or 0.0) if cfg else 0.0
                         depth_checked = 0
                         depth_rejected = 0
-                        if min_depth > 0 and candidates:
+                        if (min_depth > 0 or bool(getattr(cfg, "order_flow_enabled", True))) and candidates:
                             enriched = []
                             for hit in candidates:
                                 symbol = str(hit.get("Pair") or hit.get("Symbol") or "").upper()
@@ -1244,8 +1244,9 @@ class CryptoScannerApp:
                                 enriched.append(hit)
                             candidates = enriched
                         logger.info(
-                            "%s[NOBITEX] Filters | regime=%s | %s | execution_depth=%d rejected=%d threshold=%.0f IRT",
+                            "%s[NOBITEX] Filters | regime=%s | %s | L2 checked=%d rejected=%d ask_depth_min=%.0f IRT of_min=%.1f",
                             tag, regime, self.momentum_engine.stats_line(), depth_checked, depth_rejected, min_depth,
+                            float(getattr(cfg, "order_flow_min_score", 58.0) or 58.0),
                         )
                 except Exception as exc:
                     logger.warning(
