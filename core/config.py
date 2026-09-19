@@ -21,7 +21,7 @@ Obfuscation Note:
 Environment Overrides (useful for testing / CI):
     CRYPTOSCANNER_APPDATA   - override APPDATA_DIR
 
-Version: 6.2.0
+Version: 6.9.0
     - Phase-1 production hardening + Phase-2 adaptive strategy modules.
     - Default bot profile: real-move entry, hard stop, trailing profit lock, paper mode.
 """
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Version
 # ══════════════════════════════════════════════════════════════
 
-APP_VERSION: str = "6.2.0"
+APP_VERSION: str = "6.9.0"
 APP_NAME:    str = "CryptoScanner"
 
 # ══════════════════════════════════════════════════════════════
