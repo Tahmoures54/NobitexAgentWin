@@ -1,9 +1,9 @@
 """
 Main application class for the Advanced Crypto Scanner.
 Drop-in for gui/gui_main.py
-Version: 7.9.0 — Add L2 order-flow entry gate
+Version: 7.0.0 — Add L2 order-flow entry gate
 
-Changes in 7.9.0\n────────────────\nFIX 1 — Candidate BUY entries now receive an interpretable L2 microstructure layer: order-flow imbalance, visible bid/ask depth, spread and microprice bias. A configurable BUY-side gate rejects weak visible demand or wide spreads before execution.\n\nChanges in 7.8.5
+Changes in 7.0.0\n────────────────\nFIX 1 — Candidate BUY entries now receive an interpretable L2 microstructure layer: order-flow imbalance, visible bid/ask depth, spread and microprice bias. A configurable BUY-side gate rejects weak visible demand or wide spreads before execution.\n\nChanges in 7.8.5
 ────────────────
 FIX 1 — `_live_auto_scan` now gates the `real_signal_tracker.process_new_signals`
     call with `should_run_live_tracker(plan, has_live_positions)`.  Previously
