@@ -25,10 +25,16 @@ This document is the go-live checklist for operators. Completing it does **not**
 | Field | Value |
 |-------|--------|
 | Product | CryptoScanner — Nobitex IRT Edition |
-| Version | 6.8.0 |
+| Version | 6.9.0 |
 | Default execution | **Paper** |
 | Venue | Nobitex spot IRT only |
 
+
+## v6.9 profitability-aware strategy switching
+
+The automatic strategy layer now combines market regime with realized closed-trade expectancy. The system requires a minimum sample of 8 closed trades before realized strategy performance can veto a regime-selected strategy. A negative-expectancy candidate can be replaced by a sufficiently sampled positive-expectancy alternative. This is a control mechanism, not a profitability guarantee.
+
+The strategy label is stored with new trades through `entry_indicators`, allowing performance to be attributed to the strategy that generated the entry. Strategy switching is deliberately conservative and uses hysteresis to avoid rapid scan-to-scan changes.
 
 ## v6.8 actual-fill accounting
 
