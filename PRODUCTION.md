@@ -25,12 +25,12 @@ This document is the go-live checklist for operators. Completing it does **not**
 | Field | Value |
 |-------|--------|
 | Product | CryptoScanner — Nobitex IRT Edition |
-| Version | 6.9.0 |
+| Version | 7.0.0 |
 | Default execution | **Paper** |
 | Venue | Nobitex spot IRT only |
 
 
-## v6.9 profitability-aware strategy switching
+## v7.0 L2 order-flow microstructure gate\n\nThe live candidate path can now require visible Nobitex bid-side pressure before a BUY is allowed. The feature layer is deterministic and interpretable; it does not replace the existing strategy selector or risk engine.\n\nDefault controls: `order_flow_enabled=true`, `order_flow_levels=10`, `order_flow_min_score=58`, `order_flow_max_spread_pct=1.2`. These thresholds must be validated on real Nobitex data before changing live allocation.\n\n## v6.9 profitability-aware strategy switching
 
 The automatic strategy layer now combines market regime with realized closed-trade expectancy. The system requires a minimum sample of 8 closed trades before realized strategy performance can veto a regime-selected strategy. A negative-expectancy candidate can be replaced by a sufficiently sampled positive-expectancy alternative. This is a control mechanism, not a profitability guarantee.
 
