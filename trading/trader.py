@@ -327,6 +327,23 @@ class TradingBot:
         if auto_start:
             self.start()
 
+    def record_actual_fill(self, order: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Record a terminal/partial exchange fill without affecting execution."""
+        if self.trade_accounting is None:
+            return None
+        try:
+            result = self.trade_accounting.ingest_order(order)
+            if result.get("status") == "recorded":
+                logger.info(
+                    "Actual fill reconciled into ledger: %s %s qty=%s price=%s",
+                    order.get("side"), order.get("symbol"),
+                    result.get("quantity"), result.get("price"),
+                )
+            return result
+        except Exception as exc:
+            logger.warning("Actual fill ledger reconciliation failed: %s", exc)
+            return {"status": "error", "accounting_complete": False, "reason": str(exc)}
+
     def refresh_portfolio(self, *, force: bool = True, include_orders: bool = True) -> Optional[Dict[str, Any]]:
         """Refresh the real Nobitex spot portfolio and return its snapshot."""
         if self.exchange is None or self.exchange_name != "nobitex":
