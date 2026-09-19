@@ -136,6 +136,7 @@ class RealTradingPanel(tk.Frame):
         self._schedule_ui_pump()
         self._schedule_refresh()
         self._schedule_timer()
+        self._accounting_refresh_job = self.after(5000, self._schedule_accounting_refresh)
 
     def _load_cfg(self) -> BotConfig:
         try:
@@ -401,6 +402,14 @@ class RealTradingPanel(tk.Frame):
                 )
             else:
                 self._mode_hdr.config(text="Mode: PAPER | live entries off")
+
+    def _schedule_accounting_refresh(self) -> None:
+        if self._closing:
+            return
+        try:
+            self._refresh_accounting_now()
+        finally:
+            self._accounting_refresh_job = self.after(30000, self._schedule_accounting_refresh)
 
     def _on_bot_ready(self) -> None:
         if self._closing:
