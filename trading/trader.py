@@ -57,6 +57,7 @@ from typing import Any, Dict, List, Optional
 from .bot_config import BotConfig, load_config, validate_config
 from .exchange_base import ExchangeBase
 from .idempotency import IdempotencyGuard
+from .portfolio_manager import NobitexPortfolioManager
 
 
 logger = logging.getLogger("TradingBot")
@@ -243,6 +244,7 @@ class TradingBot:
         self.closed = False
         self.lock = threading.RLock()
         self.idempotency = IdempotencyGuard()
+        self.portfolio_manager: Optional[NobitexPortfolioManager] = None
 
         self.exchange_name = (
             getattr(self.config, "exchange", "simulator") or "simulator"
@@ -314,9 +316,31 @@ class TradingBot:
         # FIX v6.4.0: pull the FULL balance state before any probe.
         self._sync_exchange_state()
         self._initialize_balance()
+        if self.exchange_name == "nobitex":
+            self.portfolio_manager = NobitexPortfolioManager(
+                self.exchange, quote=self.quote_currency
+            )
 
         if auto_start:
             self.start()
+
+    def refresh_portfolio(self, *, force: bool = True, include_orders: bool = True) -> Optional[Dict[str, Any]]:
+        """Refresh the real Nobitex spot portfolio and return its snapshot."""
+        if self.exchange is None or self.exchange_name != "nobitex":
+            return None
+        if self.portfolio_manager is None:
+            self.portfolio_manager = NobitexPortfolioManager(
+                self.exchange, quote=self.quote_currency
+            )
+        snapshot = self.portfolio_manager.refresh(
+            force=force, include_orders=include_orders
+        )
+        # Keep quote equity aligned with the exchange-valued account.
+        portfolio_value = _safe_float(snapshot.get("portfolio_value_quote"), None)
+        if portfolio_value is not None and portfolio_value >= 0:
+            self.current_balance = portfolio_value
+            self.last_known_balance = portfolio_value
+        return snapshot
 
     def _init_exchange(self) -> None:
         """Initialize the only supported live venue: Nobitex spot IRT."""
