@@ -1779,6 +1779,12 @@ class SignalTracker:
                 time.sleep(FILL_POLL_INTERVAL)
                 continue
             st = str(status.get("status") or "").lower()
+            record_fill = getattr(self.executor, "record_actual_fill", None)
+            if callable(record_fill) and isinstance(status, dict):
+                try:
+                    status["accounting"] = record_fill(status)
+                except Exception as exc:
+                    logger.debug("Actual-fill accounting hook failed: %s", exc)
             matched = self._order_matched_qty(status)
             if st != last_status or matched != last_matched:
                 logger.info("Order %s for %s: status=%s matched=%.8f",
