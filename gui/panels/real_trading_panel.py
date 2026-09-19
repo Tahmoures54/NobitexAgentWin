@@ -1458,6 +1458,11 @@ class RealTradingPanel(tk.Frame):
                 self.after_cancel(self._timer_job)
             except Exception:
                 pass
+        if self._accounting_refresh_job:
+            try:
+                self.after_cancel(self._accounting_refresh_job)
+            except Exception:
+                pass
 
     def _manual_refresh(self):
         self._process_ui_callbacks()
