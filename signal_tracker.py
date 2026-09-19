@@ -1471,6 +1471,13 @@ class SignalTracker:
         matched_qty = self._order_matched_qty(sell_order)
 
         if sell_order and (status in self._filled_statuses() or matched_qty > 0):
+            if self._order_execution_price(sell_order) <= 0:
+                logger.warning(
+                    "Sell for %s has matched quantity but no exchange-reported execution price; "
+                    "keeping position open for reconciliation.",
+                    rec["symbol"],
+                )
+                return {"action": "retry"}
             return {
                 "action": "closed", "rec": rec, "ev": ev,
                 "sell_order": sell_order, "sell_qty": sell_qty,
@@ -1483,12 +1490,18 @@ class SignalTracker:
             if final is not None:
                 st2 = str((final or {}).get("status") or "").lower()
                 m2 = self._order_matched_qty(final)
-                if st2 in self._filled_statuses() or m2 > 0:
+                if (st2 in self._filled_statuses() or m2 > 0) and self._order_execution_price(final) > 0:
                     return {
                         "action": "closed", "rec": rec, "ev": ev,
                         "sell_order": final, "sell_qty": sell_qty,
                         "entry": entry, "base_risk": base_risk,
                     }
+                if m2 > 0:
+                    logger.warning(
+                        "Sell for %s reached fill state without an exchange-reported execution price; "
+                        "keeping position open for reconciliation.",
+                        rec["symbol"],
+                    )
             logger.error("Sell for %s did not reach terminal; keeping open.", rec["symbol"])
             return {"action": "retry"}
 
