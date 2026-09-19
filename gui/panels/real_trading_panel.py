@@ -566,6 +566,7 @@ class RealTradingPanel(tk.Frame):
             "fees": tk.StringVar(value="—"),
             "status": tk.StringVar(value="Not synced"),
             "reconciliation": tk.StringVar(value="—"),
+            "updated": tk.StringVar(value="—"),
         }
         rows = [
             ("Realized P&L:", "realized"),
@@ -573,6 +574,7 @@ class RealTradingPanel(tk.Frame):
             ("Fees:", "fees"),
             ("Ledger:", "status"),
             ("Wallet reconciliation:", "reconciliation"),
+            ("Last update:", "updated"),
         ]
         for row, (label, key) in enumerate(rows):
             tk.Label(frame, text=label, font=T.font(size=T.FONT_SM),
@@ -623,6 +625,7 @@ class RealTradingPanel(tk.Frame):
         )
         complete = bool(accounting.get("accounting_complete", False))
         self._accounting_vars["status"].set("Complete" if complete else "Incomplete — exchange data missing")
+        self._accounting_vars["updated"].set(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if recon.get("reconciled"):
             self._accounting_vars["reconciliation"].set("OK")
         else:
