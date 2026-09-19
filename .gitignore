@@ -1,12 +1,19 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.venv/
+venv/
+env/
 
 # Local runtime state and secrets
 data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
 data/*.enc
 data/*.key
 data/*.hash
@@ -14,6 +21,7 @@ data/trade_history.json
 data/last_data.json
 data/scan_limit.enc
 data/trial_marker.enc
+data/api_key.txt
 admin_code.txt
 
 # Credentials / environment
@@ -21,11 +29,23 @@ admin_code.txt
 .env.*
 *.pem
 *.seed
+*.key
+secrets/
 
 # Build output
 build/
 dist/
 *.spec
+*.egg-info/
 
-# Logs
+# Logs and local overrides
 *.log
+logs/
+.local/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
