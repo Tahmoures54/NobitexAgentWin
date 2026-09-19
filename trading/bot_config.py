@@ -184,6 +184,9 @@ class BotConfig:
     confirmation_max_minutes: int = 5
     invalidation_pct: float = 0.8
     max_chase_pct: float = 0.6
+    ml_enabled: bool = True
+    ml_min_samples: int = 30
+    ml_min_probability: float = 0.58
     min_quality: float = 0.4
     blocked_risk_levels: List[str] = field(default_factory=lambda: ["High", "Extreme"])
     reverse_signal_exit_enabled: bool = True
@@ -410,7 +413,7 @@ class BotConfig:
             "max_open_positions", "kline_limit", "movement_lookback_scans",
             "check_interval_seconds", "entry_cooldown_seconds",
             "cooldown_after_loss_min", "cooldown_after_win_min",
-            "max_new_entries_per_cycle", "confirmation_max_minutes",
+            "max_new_entries_per_cycle", "confirmation_max_minutes", "ml_min_samples",
             "market_scan_limit", "min_confirm_scans", "strategy_defaults_version",
         }
         _float_fields = {
@@ -420,7 +423,7 @@ class BotConfig:
             "min_volume_24h", "min_market_cap", "pump_threshold_pct",
             "trailing_distance_pct", "trailing_activation_pct",
             "take_profit_percent", "trading_fee_pct", "confirmation_pct",
-            "invalidation_pct", "max_chase_pct", "min_quality",
+            "invalidation_pct", "max_chase_pct", "min_quality", "ml_min_probability",
             "min_nobitex_discount_pct", "max_nobitex_discount_pct",
             "max_nobitex_spread_pct", "max_spread_pct",
             "min_volume_irt", "max_market_data_age_sec",
@@ -431,7 +434,7 @@ class BotConfig:
         }
         _bool_fields = {
             "testnet", "spot_mode", "halt_on_max_drawdown", "enable_auto_trading",
-            "trailing_stop_enabled", "confirmation_enabled",
+            "trailing_stop_enabled", "confirmation_enabled", "ml_enabled",
             "reverse_signal_exit_enabled", "use_risk_filter",
             "btc_dump_exception_enabled",
             "auto_regime_strategy",
