@@ -842,6 +842,63 @@ class SignalTracker:
         if max_open is not None:
             self.max_open_trades = max(1, int(max_open))
 
+    def get_strategy_performance(self, lookback: int = 100) -> Dict[str, Dict[str, Any]]:
+        """Return realized strategy performance from closed trades.
+
+        Strategy is read from entry_indicators['Strategy'] when present.
+        Trades without an explicit strategy are excluded rather than guessed.
+        Expectancy is the mean net P&L percentage per trade.
+        """
+        result: Dict[str, Dict[str, Any]] = {}
+        try:
+            with self._lock, self._get_conn() as conn:
+                rows = conn.execute(
+                    "SELECT entry_indicators, pnl_pct_net, pnl_percent "
+                    "FROM trades WHERE status='closed' "
+                    "ORDER BY id DESC LIMIT ?",
+                    (max(1, int(lookback)),),
+                ).fetchall()
+        except sqlite3.Error as exc:
+            logger.debug("Strategy performance query failed: %s", exc)
+            return result
+
+        buckets: Dict[str, List[float]] = {}
+        for indicators, pnl_net, pnl_raw in rows:
+            strategy = None
+            try:
+                payload = json.loads(indicators) if indicators else {}
+                if isinstance(payload, dict):
+                    strategy = payload.get("Strategy") or payload.get("strategy")
+            except (TypeError, ValueError):
+                strategy = None
+            strategy = str(strategy or "").upper().strip()
+            if strategy not in ("TREND_FOLLOWING", "MOMENTUM", "MEAN_REVERSION", "SCALPING", "DEFENSIVE"):
+                continue
+            try:
+                pnl = float(pnl_net if pnl_net is not None else pnl_raw)
+            except (TypeError, ValueError):
+                continue
+            buckets.setdefault(strategy, []).append(pnl)
+
+        for strategy, pnls in buckets.items():
+            wins = [x for x in pnls if x > 0]
+            losses = [x for x in pnls if x <= 0]
+            avg_win = sum(wins) / len(wins) if wins else 0.0
+            avg_loss = sum(losses) / len(losses) if losses else 0.0
+            win_rate = len(wins) / len(pnls) if pnls else 0.0
+            expectancy = sum(pnls) / len(pnls) if pnls else 0.0
+            result[strategy] = {
+                "trades": len(pnls),
+                "wins": len(wins),
+                "losses": len(losses),
+                "win_rate": round(win_rate * 100.0, 2),
+                "avg_win_pct": round(avg_win, 4),
+                "avg_loss_pct": round(avg_loss, 4),
+                "expectancy_pct": round(expectancy, 4),
+                "net_pnl_pct": round(sum(pnls), 4),
+            }
+        return result
+
     # ══════════════════════════════════════════════════════════════
     # DB
     # ══════════════════════════════════════════════════════════════
