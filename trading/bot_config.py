@@ -204,6 +204,13 @@ class BotConfig:
     max_local_premium_pct: float = 0.0
     max_market_data_age_sec: float = 300.0
 
+    # ── Order-flow microstructure gate (v7) ──────────────────
+    order_flow_enabled: bool = True
+    order_flow_levels: int = 10
+    order_flow_min_score: float = 58.0
+    order_flow_max_spread_pct: float = 1.2
+    order_flow_min_bid_depth_quote: float = 0.0
+
     # ── Eagle Exception (BTC dump bypass) ────────────────────
     btc_dump_exception_enabled: bool = True
     eagle_min_observed_move_pct: float = 2.5
@@ -801,6 +808,14 @@ def validate_config(config: BotConfig) -> List[str]:
         errors.append("eagle_min_volume_irt must be >= 0.")
     if c.eagle_max_spread_pct <= 0:
         errors.append("eagle_max_spread_pct must be > 0.")
+    if c.order_flow_levels < 1:
+        errors.append("order_flow_levels must be >= 1.")
+    if not (0.0 <= c.order_flow_min_score <= 100.0):
+        errors.append("order_flow_min_score must be between 0 and 100.")
+    if c.order_flow_max_spread_pct <= 0:
+        errors.append("order_flow_max_spread_pct must be > 0.")
+    if c.order_flow_min_bid_depth_quote < 0:
+        errors.append("order_flow_min_bid_depth_quote must be >= 0.")
     return errors
 
 
