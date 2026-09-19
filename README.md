@@ -1,4 +1,4 @@
-# CryptoScanner 6.9.0 — Nobitex IRT Edition
+# CryptoScanner 7.0.0 — Nobitex IRT Edition
 
 CryptoScanner is a Windows-friendly spot scanner and trading assistant built specifically for **Nobitex and the IRT market**.
 
@@ -8,9 +8,9 @@ This project is a trading system, **not a profit guarantee**. Cryptocurrency mar
 
 **Production docs:** [PRODUCTION.md](PRODUCTION.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
 
-## What this release includes
+## What this release includes\n\n### v7.0 — L2 order-flow microstructure gate\n\nCandidate entries can now be confirmed against Nobitex top-of-book pressure. The gate calculates bid/ask visible depth imbalance, spread and microprice bias, records an interpretable 0–100 order-flow score, and can reject weak buy pressure before execution. It is deliberately a confirmation layer: regime selection, strategy performance, sizing, stops, accounting and execution safeguards remain in control.
 
-### v6.9 — Profitability-aware strategy switching
+### v7.0 — Profitability-aware strategy switching
 
 The adaptive layer now uses realized closed-trade performance in addition to market regime. A strategy needs a minimum sample before its results can influence switching; negative realized expectancy can veto a regime-selected strategy in favor of a positive, sufficiently sampled alternative. Switch hysteresis prevents scan-to-scan flapping. The selected strategy is recorded with new trades so future performance is attributable to the strategy that actually generated the entry.
 
