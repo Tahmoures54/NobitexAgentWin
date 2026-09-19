@@ -1,4 +1,4 @@
-"""Nobitex-only trading package + Phase-1 hardening layers."""
+"""Nobitex-only trading package + Phase-1/2 modules."""
 from .nobitex_client import NobitexClient
 from .execution_mode import LIVE, PAPER, normalize_execution_mode, cycle_plan
 from .bot_config import apply_to_tracker
@@ -17,6 +17,10 @@ __all__ = [
     "IdempotencyGuard",
     "Watchdog",
     "get_watchdog",
+    # Phase-2 strategy
+    "StrategySelector",
+    "AutoRiskEngine",
+    "ConfidenceScorer",
 ]
 
 try:
@@ -24,5 +28,12 @@ try:
     from .retry_policy import RetryPolicy, RetryConfig
     from .idempotency import IdempotencyGuard
     from .watchdog import Watchdog, get_watchdog
+except ImportError:
+    pass
+
+try:
+    from .strategy_selector import StrategySelector
+    from .auto_risk import AutoRiskEngine
+    from .confidence import ConfidenceScorer
 except ImportError:
     pass
