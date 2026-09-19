@@ -1,4 +1,4 @@
-## v6.9.0 — Profitability-aware adaptive strategy switching
+## v7.0.0 — L2 order-flow microstructure gate\n\n- Added deterministic Nobitex L2 order-flow feature extraction.\n- Added bid/ask visible-depth imbalance, spread and microprice-bias features.\n- Added configurable BUY-side entry gate with conservative defaults.\n- Wired order-flow confirmation into the existing candidate execution path.\n- Added unit tests for pressure, spread and gate behavior.\n- Kept the existing regime, profitability, sizing, stop, accounting and live-safety layers intact.\n- No profitability guarantee; paper and walk-forward validation remain required.\n\n## v6.9.0 — Profitability-aware adaptive strategy switching
 
 - Added realized strategy performance statistics from closed trades.
 - Added minimum-sample and hysteresis controls to strategy selection.
