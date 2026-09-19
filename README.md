@@ -1,93 +1,61 @@
-# CryptoScanner 6.1.1 — Nobitex IRT Edition
+# CryptoScanner 6.2.0 — Nobitex IRT Edition
 
 CryptoScanner is a Windows-friendly spot scanner and trading assistant built specifically for **Nobitex and the IRT market**.
 
 ## Important
 
-This project is a trading system, not a profit guarantee. Cryptocurrency markets can move rapidly and losses can exceed expectations. The release is designed to improve execution discipline, reduce avoidable risk, and avoid unnecessary dependencies; it does not promise profitability.
+This project is a trading system, **not a profit guarantee**. Cryptocurrency markets can move rapidly and losses can exceed expectations. The release improves execution discipline and operational safety; it does not promise profitability.
 
-## What changed in this release
+**Production docs:** [PRODUCTION.md](PRODUCTION.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
+
+## What this release includes
 
 ### Venue isolation
-The trading stack now supports **Nobitex only**:
-- Nobitex REST market statistics
-- Nobitex order book
-- Nobitex UDF candle history
-- Nobitex balances
-- Nobitex spot orders
-- Nobitex order status/history/cancellation
+Nobitex only: market stats, order book, candles, balances, spot orders, status and cancel.
 
-All alternative exchange adapters and third-party market-data adapters were removed.
+### Strategy behavior (default profile)
+1. Enter on **real observed local move** (default ~1.5–2%), not micro-noise.
+2. Reject wide spread, weak volume, and excessive chase.
+3. Place a **hard stop** on entry (default ~3%).
+4. **Trail the stop** when in profit (activate ~1.5%, distance ~1.2%).
+5. Take-profit percent default **0** — primary exit is the trailing stop.
+6. BTC dump guard + limited Eagle exception for strong liquid movers.
+7. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
 
-### Strategy
-The entry engine is now `NobitexMomentumEngine`:
-1. Observe the real Nobitex IRT price path.
-2. Require measurable upward movement over multiple scans.
-3. Reject excessive spread and excessive chase.
-4. Require meaningful local volume.
-5. Optionally inspect executable ask depth for shortlisted candidates.
-6. Block most new alt entries during a broad BTC sell-off.
-7. Allow a tightly controlled Eagle exception only for unusually strong, liquid local movers.
-8. Hand the final candidate to `SignalTracker`, which applies account, exposure, cooldown and risk controls.
+### Phase-1 production hardening
+Structured logging, rate limiter, retry policy, SQLite ledger, idempotency, graceful shutdown, watchdog.
 
-The engine does not use a foreign price feed to manufacture an entry signal.
+### Phase-2 adaptive modules
+`tech_regime`, `strategy_selector`, `auto_risk`, `confidence`, `adaptive_pipeline`.
 
-### Phase-1 Production Hardening (new)
+## Default risk snapshot (`data/bot_config.json`)
 
-| Module | Path | Role |
-|--------|------|------|
-| Structured logging | `core/logger.py` | JSON + colored console, thread-local context |
-| Rate limiter | `trading/rate_limiter.py` | Client-side Token Bucket (public / private_read / private_trade) |
-| Retry policy | `trading/retry_policy.py` | Exponential backoff + full jitter; no blind retry on mutating calls |
-| SQLite ledger | `core/database.py` | WAL mode, orders / trades / balances / system_state |
-| Idempotency | `trading/idempotency.py` | Two-phase order protection (prepare → confirm) |
-| Graceful shutdown | `core/shutdown.py` | SIGINT/SIGTERM ordered cleanup hooks |
-| Health watchdog | `trading/watchdog.py` | Heartbeat monitoring → degraded / critical |
+| Setting | Default |
+|---------|---------|
+| Execution mode | **paper** |
+| Position sizing | `risk_percent` (~1% risk/trade) |
+| Stop loss | 3% |
+| Trailing | on — act 1.5% / dist 1.2% |
+| Take profit | 0 (trail-driven exits) |
+| Max open positions | 4 |
+| Max total exposure | 50% |
+| Max new entries / cycle | 1 |
+| Fee model (sim) | 0.25% |
 
-**Note:** Full wiring of the rate limiter into `nobitex_client._request` is provided by the local script:
+Validate on your account size in paper before any live change.
 
-```bat
-python tools/apply_phase1_client_patch.py
-```
-
-## Risk and position sizing
-
-The shipped configuration uses explicit risk/exposure controls:
-- Position sizing mode: `fixed` in the supplied configuration snapshot
-- Fixed position notional: 2,500,000 IRT
-- Stop loss: 3%
-- Trailing activation: 3%
-- Trailing distance: 2%
-- Take profit: 50% (the trailing stop remains the primary exit once active)
-- Maximum total exposure: 90%
-- Maximum open positions: 10
-- One new entry per scan
-- 10-second live scan interval, subject to API limits
-
-These values are configuration choices, not recommendations or guarantees. For a different account size, validate sizing and exposure in paper/forward testing before changing live parameters.
-
-**IRT note:** Nobitex exposes the local currency balance/order values in Rial-compatible units. The application keeps calculations in the API unit and converts to Toman only for human-facing display. Never divide an order amount by 10 before sending it to Nobitex.
+**IRT note:** API amounts are rial-compatible. Do **not** divide order size by 10 before sending to Nobitex.
 
 ## Security
 
-Do not distribute live credentials with the project.
-
-Preferred options:
-- `NOBITEX_API_KEY`
-- `NOBITEX_PRIVATE_KEY`
-
-The application also supports its encrypted local credential store for normal desktop use. Runtime credential files are intentionally excluded from the release archive and Git.
-
-Create API keys with:
-- READ
-- TRADE
-- no WITHDRAW
-
-Keep the private key secret and keep the PC clock synchronized.
+- Prefer `NOBITEX_API_KEY` / `NOBITEX_PRIVATE_KEY` or the encrypted local store
+- API permissions: **READ + TRADE**, never WITHDRAW
+- Keep PC clock in sync
+- See [SECURITY.md](SECURITY.md)
 
 ## Installation
 
-Python 3.11+ is recommended; Python 3.13 is supported.
+Python 3.11+ recommended (3.13 supported).
 
 ```bat
 py -m venv .venv
@@ -96,95 +64,36 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Configure credentials
-
-### Environment variables
-
-PowerShell:
-
-```powershell
-$env:NOBITEX_API_KEY="YOUR_PUBLIC_KEY"
-$env:NOBITEX_PRIVATE_KEY="YOUR_PRIVATE_KEY"
-```
-
-Command Prompt:
-
-```bat
-set NOBITEX_API_KEY=YOUR_PUBLIC_KEY
-set NOBITEX_PRIVATE_KEY=YOUR_PRIVATE_KEY
-```
-
-Alternatively, open the application Settings dialog and enter the Nobitex public/private key pair. The private key is never written into normal logs.
-
 ## Run
 
 ```bat
 py main.py
+py main.py --debug --log logs\scanner.log
+python -m pytest -q
 ```
 
-Paper mode is the default. Use paper mode to validate the strategy before enabling live execution.
+Paper mode is the default. Follow [PRODUCTION.md](PRODUCTION.md) before enabling live.
 
-## Live trading safety
+## Live enable (short)
 
-Before enabling live trading:
-1. Verify the Nobitex key has READ and TRADE only.
-2. Verify the displayed IRT balance.
-3. Confirm position sizing is `risk_percent`.
-4. Confirm the maximum position and total exposure limits.
-5. Start with a small account allocation.
-6. Watch the order/fill logs.
-7. Verify protective stop placement after every live entry.
+1. Paper sample with fees included  
+2. Key = READ+TRADE only  
+3. Confirm balance, stops, exposure caps  
+4. Small allocation first  
+5. Verify fill + protective stop on first live entry  
 
-The live execution layer refuses to treat an unfilled order as a completed position and performs wallet reconciliation after fills.
-
-## Project structure
+## Project layout (abbrev.)
 
 ```text
-CryptoScanner-6.1.1-Nobitex-IRT/
-│
-├── main.py
-├── README.md
-├── UserGuide.html
-├── requirements.txt
-├── pytest.ini
-│
-├── analysis/
-├── api/
-├── core/
-│   ├── logger.py          # structured JSON + colored console
-│   ├── database.py        # SQLite WAL ledger
-│   ├── shutdown.py        # graceful SIGINT/SIGTERM
-│   └── ...
-│
-├── trading/
-│   ├── rate_limiter.py    # Token Bucket
-│   ├── retry_policy.py    # exponential backoff + jitter
-│   ├── idempotency.py     # two-phase order guard
-│   ├── watchdog.py        # thread health monitor
-│   ├── nobitex_client.py
-│   └── ...
-│
-├── gui/
-├── tests/
-│   └── test_phase1_hardening.py
-│
-├── tools/
-│   └── apply_phase1_client_patch.py
-│
-└── data/
+main.py
+PRODUCTION.md / SECURITY.md / CHANGELOG.md
+core/          # config, logger, database, shutdown
+trading/       # nobitex client, momentum, regime, pipeline, risk
+gui/
+tests/
+data/bot_config.json
 ```
 
-## Testing
+## Operational sequence
 
-```bat
-python -m pytest -q
-python -m pytest tests/test_phase1_hardening.py -q
-```
-
-## Operational recommendation
-
-For a new installation, keep this sequence:
-
-**Paper → observe fills/signals → tune thresholds → small live allocation → gradual increase**
-
-Do not increase size merely because a strategy had a short profitable period. Evaluate it over a meaningful sample of trades, including fees, slippage, rejected orders and missed fills.
+**Paper → measure expectancy (after fees) → tune → small live → scale only with evidence**
