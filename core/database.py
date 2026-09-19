@@ -6,6 +6,11 @@ Provides atomic transactions for:
 - Trade history
 - Balance snapshots
 - System state / health flags
+
+FIX: isolation_level + BEGIN/COMMIT interaction caused
+"cannot commit/rollback - no transaction is active" under executescript
+and some read paths. Transactions are now explicit only when needed and
+commit/rollback are guarded with in_transaction.
 """
 from __future__ import annotations
 
@@ -18,7 +23,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +36,17 @@ class Database:
     def __init__(self, db_path: Optional[str] = None) -> None:
         self.db_path = db_path or _DEFAULT_DB_PATH
         self._lock = threading.RLock()
-        Path(os.path.dirname(os.path.abspath(self.db_path))).mkdir(parents=True, exist_ok=True)
+        parent = os.path.dirname(os.path.abspath(self.db_path))
+        if parent:
+            Path(parent).mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
+        # Default isolation (DEFERRED) — Python opens a transaction on DML.
         conn = sqlite3.connect(
             self.db_path,
             timeout=5.0,
             check_same_thread=False,
-            isolation_level=None,  # autocommit off; we manage transactions
         )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
@@ -50,73 +57,95 @@ class Database:
 
     @contextmanager
     def _transaction(self) -> Generator[sqlite3.Connection, None, None]:
+        """Write transaction; safe commit/rollback even if SQLite auto-finished."""
         with self._lock:
             conn = self._connect()
             try:
-                conn.execute("BEGIN")
+                conn.execute("BEGIN IMMEDIATE")
                 yield conn
-                conn.execute("COMMIT")
+                if conn.in_transaction:
+                    conn.execute("COMMIT")
             except Exception:
-                conn.execute("ROLLBACK")
+                if conn.in_transaction:
+                    try:
+                        conn.execute("ROLLBACK")
+                    except sqlite3.Error as rb_exc:
+                        logger.debug("Rollback skipped: %s", rb_exc)
                 raise
             finally:
                 conn.close()
 
+    @contextmanager
+    def _reader(self) -> Generator[sqlite3.Connection, None, None]:
+        """Read path without forcing a write transaction."""
+        with self._lock:
+            conn = self._connect()
+            try:
+                yield conn
+            finally:
+                conn.close()
+
     def _init_schema(self) -> None:
-        with self._transaction() as conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS orders (
-                    id              TEXT PRIMARY KEY,
-                    client_order_id TEXT UNIQUE,
-                    symbol          TEXT NOT NULL,
-                    side            TEXT NOT NULL,
-                    order_type      TEXT NOT NULL,
-                    price           REAL,
-                    amount          REAL NOT NULL,
-                    filled_amount   REAL DEFAULT 0,
-                    status          TEXT NOT NULL DEFAULT 'prepared',
-                    created_at      TEXT NOT NULL,
-                    updated_at      TEXT NOT NULL,
-                    raw_response    TEXT,
-                    error_message   TEXT
-                );
+        # executescript issues implicit commits; do not wrap in BEGIN/COMMIT.
+        with self._lock:
+            conn = self._connect()
+            try:
+                conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS orders (
+                        id              TEXT PRIMARY KEY,
+                        client_order_id TEXT UNIQUE,
+                        symbol          TEXT NOT NULL,
+                        side            TEXT NOT NULL,
+                        order_type      TEXT NOT NULL,
+                        price           REAL,
+                        amount          REAL NOT NULL,
+                        filled_amount   REAL DEFAULT 0,
+                        status          TEXT NOT NULL DEFAULT 'prepared',
+                        created_at      TEXT NOT NULL,
+                        updated_at      TEXT NOT NULL,
+                        raw_response    TEXT,
+                        error_message   TEXT
+                    );
 
-                CREATE TABLE IF NOT EXISTS trades (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    order_id        TEXT,
-                    symbol          TEXT NOT NULL,
-                    side            TEXT NOT NULL,
-                    price           REAL NOT NULL,
-                    amount          REAL NOT NULL,
-                    fee             REAL DEFAULT 0,
-                    fee_currency    TEXT,
-                    executed_at     TEXT NOT NULL,
-                    mode            TEXT DEFAULT 'paper',
-                    pnl             REAL,
-                    FOREIGN KEY (order_id) REFERENCES orders(id)
-                );
+                    CREATE TABLE IF NOT EXISTS trades (
+                        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                        order_id        TEXT,
+                        symbol          TEXT NOT NULL,
+                        side            TEXT NOT NULL,
+                        price           REAL NOT NULL,
+                        amount          REAL NOT NULL,
+                        fee             REAL DEFAULT 0,
+                        fee_currency    TEXT,
+                        executed_at     TEXT NOT NULL,
+                        mode            TEXT DEFAULT 'paper',
+                        pnl             REAL,
+                        FOREIGN KEY (order_id) REFERENCES orders(id)
+                    );
 
-                CREATE TABLE IF NOT EXISTS balance_history (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    currency        TEXT NOT NULL,
-                    available       REAL NOT NULL,
-                    total           REAL NOT NULL,
-                    recorded_at     TEXT NOT NULL
-                );
+                    CREATE TABLE IF NOT EXISTS balance_history (
+                        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                        currency        TEXT NOT NULL,
+                        available       REAL NOT NULL,
+                        total           REAL NOT NULL,
+                        recorded_at     TEXT NOT NULL
+                    );
 
-                CREATE TABLE IF NOT EXISTS system_state (
-                    key             TEXT PRIMARY KEY,
-                    value           TEXT NOT NULL,
-                    updated_at      TEXT NOT NULL
-                );
+                    CREATE TABLE IF NOT EXISTS system_state (
+                        key             TEXT PRIMARY KEY,
+                        value           TEXT NOT NULL,
+                        updated_at      TEXT NOT NULL
+                    );
 
-                CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-                CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders(symbol);
-                CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
-                CREATE INDEX IF NOT EXISTS idx_balance_currency ON balance_history(currency);
-                """
-            )
+                    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+                    CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders(symbol);
+                    CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
+                    CREATE INDEX IF NOT EXISTS idx_balance_currency ON balance_history(currency);
+                    """
+                )
+                conn.commit()
+            finally:
+                conn.close()
         logger.info("Database schema initialized at %s (WAL mode)", self.db_path)
 
     # ── Orders ──────────────────────────────────────────────────────────────
@@ -132,7 +161,7 @@ class Database:
     ) -> str:
         """Insert a prepared order (pre-network). Returns internal id."""
         now = datetime.now(timezone.utc).isoformat()
-        order_id = client_order_id  # use client id as primary for simplicity
+        order_id = client_order_id
         with self._transaction() as conn:
             conn.execute(
                 """
@@ -177,14 +206,14 @@ class Database:
             )
 
     def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
-        with self._transaction() as conn:
+        with self._reader() as conn:
             row = conn.execute(
                 "SELECT * FROM orders WHERE id = ?", (order_id,)
             ).fetchone()
             return dict(row) if row else None
 
     def get_open_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
-        with self._transaction() as conn:
+        with self._reader() as conn:
             if symbol:
                 rows = conn.execute(
                     "SELECT * FROM orders WHERE status IN ('prepared','submitted','partial') AND symbol = ?",
@@ -226,7 +255,7 @@ class Database:
             return int(cur.lastrowid)
 
     def get_recent_trades(self, limit: int = 50) -> List[Dict[str, Any]]:
-        with self._transaction() as conn:
+        with self._reader() as conn:
             rows = conn.execute(
                 "SELECT * FROM trades ORDER BY executed_at DESC LIMIT ?", (limit,)
             ).fetchall()
@@ -261,7 +290,7 @@ class Database:
             )
 
     def get_state(self, key: str, default: Any = None) -> Any:
-        with self._transaction() as conn:
+        with self._reader() as conn:
             row = conn.execute(
                 "SELECT value FROM system_state WHERE key = ?", (key,)
             ).fetchone()
@@ -273,9 +302,13 @@ class Database:
                 return row["value"]
 
     def close(self) -> None:
-        """No persistent connection; WAL checkpoint for cleanliness."""
+        """WAL checkpoint for cleanliness (no long-lived connection)."""
         try:
-            with self._connect() as conn:
+            conn = self._connect()
+            try:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+            finally:
+                conn.close()
         except Exception as exc:
             logger.warning("WAL checkpoint failed: %s", exc)
