@@ -10,9 +10,9 @@ This document is the go-live checklist for operators. Completing it does **not**
 | RegimeDetector | Yes | Yes (GUI path) |
 | Structured logging / shutdown | Yes | Yes (`main.py`) |
 | Watchdog | Yes | **Yes** (`main.py` starts it) |
-| SQLite `core/database.py` | Yes (tx fixed) | Partial (ledger API; SignalTracker has own DB) |
+| SQLite `core/database.py` | Yes (tx fixed) | Partial (plus actual-fill accounting ledger) |
 | Rate limiter | Yes | Run `python tools/wire_nobitex_rate_limiter.py` |
-| IdempotencyGuard | Yes | **Not yet** on place_order path |
+| IdempotencyGuard | Yes | **Yes** (`TradingBot.place_order`) |
 | AdaptivePipeline / Confidence / AutoRisk | Yes | **Not default GUI path** — integrate optionally |
 | Event-driven historical backtester | **No** | Use performance analytics only |
 | Cost gate (fee+spread+slip) | Yes | In `ConfidenceScorer` when pipeline used |
@@ -25,9 +25,23 @@ This document is the go-live checklist for operators. Completing it does **not**
 | Field | Value |
 |-------|--------|
 | Product | CryptoScanner — Nobitex IRT Edition |
-| Version | 6.7.x |
+| Version | 6.8.0 |
 | Default execution | **Paper** |
 | Venue | Nobitex spot IRT only |
+
+
+## v6.8 actual-fill accounting
+
+The production branch now includes a separate exchange-execution accounting ledger for Nobitex spot:
+
+- Actual matched quantity and execution price only; no estimated fills are booked.
+- Reported execution fees are stored when the exchange provides them.
+- Weighted-average cost basis with realized and unrealized P&L in IRT.
+- Cumulative/partial fills are idempotent.
+- Wallet-vs-ledger reconciliation is visible and flags discrepancies.
+- Live dashboard exposes accounting completeness, P&L, fees, reconciliation state, and refresh time.
+
+If Nobitex omits a required execution field such as a fee, the ledger remains explicitly incomplete rather than inventing a value.
 
 ## Pre-flight checklist
 
