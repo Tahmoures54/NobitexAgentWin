@@ -39,15 +39,25 @@ class NobitexPortfolioManager:
         if balances is None:
             raise RuntimeError("Nobitex returned no wallet data.")
 
-        # Preserve both available and total where the adapter exposes totals.
+        # get_balances() already populates the client's total-wallet cache.
+        # Read that snapshot once; never issue one wallet API call per asset.
         totals: Dict[str, float] = {}
-        total_reader = getattr(self.exchange, "get_balance_total_fresh", None)
-        if callable(total_reader):
-            for asset in list(balances):
-                try:
-                    totals[asset] = _f(total_reader(asset), balances.get(asset, 0.0))
-                except Exception:
-                    totals[asset] = _f(balances.get(asset, 0.0))
+        total_snapshot = getattr(self.exchange, "get_balances_total_snapshot", None)
+        if callable(total_snapshot):
+            try:
+                totals = dict(total_snapshot() or {})
+            except Exception as exc:
+                logger.debug("Nobitex total balance snapshot unavailable: %s", exc)
+        else:
+            # Compatibility fallback for older adapters. This path is bounded
+            # and only used when no batch total snapshot exists.
+            total_reader = getattr(self.exchange, "get_balance_total_fresh", None)
+            if callable(total_reader):
+                for asset in list(balances):
+                    try:
+                        totals[asset] = _f(total_reader(asset), balances.get(asset, 0.0))
+                    except Exception:
+                        totals[asset] = _f(balances.get(asset, 0.0))
 
         assets: List[Dict[str, Any]] = []
         quote_available = 0.0
