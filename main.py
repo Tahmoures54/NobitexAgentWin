@@ -16,23 +16,29 @@ def _setup_path() -> None:
 _setup_path()
 
 def setup_logging(debug: bool = False, log_file: str | None = None) -> logging.Logger:
-    level = logging.DEBUG if debug else logging.INFO
-    fmt = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-    date_fmt = "%H:%M:%S"
-    handlers = [logging.StreamHandler(sys.stdout)]
+    """Prefer structured logger; fall back to classic if unavailable."""
+    try:
+        from core.logger import setup_structured_logging
+        return setup_structured_logging(debug=debug, log_file=log_file, json_output=False)
+    except Exception:
+        # Fallback for early boot / missing module
+        level = logging.DEBUG if debug else logging.INFO
+        fmt = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+        date_fmt = "%H:%M:%S"
+        handlers = [logging.StreamHandler(sys.stdout)]
 
-    if log_file:
-        try:
-            fh = logging.FileHandler(log_file, encoding="utf-8")
-            fh.setFormatter(logging.Formatter(fmt, date_fmt))
-            handlers.append(fh)
-        except OSError as exc:
-            print(f"[WARNING] Cannot open log file '{log_file}': {exc}", file=sys.stderr)
+        if log_file:
+            try:
+                fh = logging.FileHandler(log_file, encoding="utf-8")
+                fh.setFormatter(logging.Formatter(fmt, date_fmt))
+                handlers.append(fh)
+            except OSError as exc:
+                print(f"[WARNING] Cannot open log file '{log_file}': {exc}", file=sys.stderr)
 
-    logging.basicConfig(level=level, format=fmt, datefmt=date_fmt, handlers=handlers, force=True)
-    for noisy in ("urllib3", "requests", "PIL", "matplotlib"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
-    return logging.getLogger("CryptoScanner")
+        logging.basicConfig(level=level, format=fmt, datefmt=date_fmt, handlers=handlers, force=True)
+        for noisy in ("urllib3", "requests", "PIL", "matplotlib"):
+            logging.getLogger(noisy).setLevel(logging.WARNING)
+        return logging.getLogger("CryptoScanner")
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="CryptoScanner", description="Advanced Crypto Scanner")
@@ -160,6 +166,21 @@ def main() -> None:
     logger.info("Python %s | %s", sys.version.split()[0], sys.platform)
     logger.info("Working dir: %s", os.getcwd())
     logger.info("=" * 50)
+
+    # Install graceful shutdown handlers
+    try:
+        from core.shutdown import get_shutdown_manager
+        from core.database import Database
+
+        shutdown_mgr = get_shutdown_manager()
+        shutdown_mgr.install_handlers()
+
+        # Register critical cleanup hooks (lower priority number = earlier)
+        db = Database()
+        shutdown_mgr.register("database-checkpoint", db.close, priority=10, timeout=3.0)
+        logger.debug("Shutdown hooks registered")
+    except Exception as exc:
+        logger.warning("Could not install full shutdown manager: %s", exc)
 
     check_dependencies(logger)
     launch_gui(logger)
