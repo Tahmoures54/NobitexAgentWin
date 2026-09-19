@@ -964,9 +964,13 @@ class TradingBot:
                 }
 
             status = str(raw_order.get("status", "") or "").strip().lower()
+            if not status:
+                status = str(raw_order.get("state", "") or "").strip().lower()
+            status = status or "submitted"
+            raw_order.setdefault("client_order_id", client_order_id)
             self.idempotency.confirm(
                 client_order_id, exchange_order_id=str(raw_order.get("order_id") or "") or None,
-                status=status or "submitted",
+                status=status,
                 filled_amount=_safe_float(raw_order.get("executed_qty") or raw_order.get("matched_amount"), None),
                 raw_response=raw_order,
             )
@@ -1005,6 +1009,10 @@ class TradingBot:
                 self.last_error_timestamp = time.time()
 
             if _is_auth_error(exc):
+                try:
+                    self.idempotency.mark_failed(client_order_id, str(exc))
+                except Exception:
+                    pass
                 with self.lock:
                     self._mark_auth_failed(exc)
                 return {
@@ -1014,6 +1022,10 @@ class TradingBot:
                 }
 
             if _is_authorization_error(exc):
+                try:
+                    self.idempotency.mark_failed(client_order_id, str(exc))
+                except Exception:
+                    pass
                 with self.lock:
                     self._mark_authorization_failed(exc)
                 return {
@@ -1023,6 +1035,10 @@ class TradingBot:
                 }
 
             if _is_rate_limit_error(exc):
+                try:
+                    self.idempotency.confirm(client_order_id, status="unknown", raw_response={"error": str(exc)})
+                except Exception:
+                    pass
                 return {
                     "status": "rejected", "order_id": None,
                     "message": "Exchange rate limit reached.",
