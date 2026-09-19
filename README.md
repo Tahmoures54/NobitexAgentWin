@@ -32,6 +32,24 @@ The entry engine is now `NobitexMomentumEngine`:
 
 The engine does not use a foreign price feed to manufacture an entry signal.
 
+### Phase-1 Production Hardening (new)
+
+| Module | Path | Role |
+|--------|------|------|
+| Structured logging | `core/logger.py` | JSON + colored console, thread-local context |
+| Rate limiter | `trading/rate_limiter.py` | Client-side Token Bucket (public / private_read / private_trade) |
+| Retry policy | `trading/retry_policy.py` | Exponential backoff + full jitter; no blind retry on mutating calls |
+| SQLite ledger | `core/database.py` | WAL mode, orders / trades / balances / system_state |
+| Idempotency | `trading/idempotency.py` | Two-phase order protection (prepare → confirm) |
+| Graceful shutdown | `core/shutdown.py` | SIGINT/SIGTERM ordered cleanup hooks |
+| Health watchdog | `trading/watchdog.py` | Heartbeat monitoring → degraded / critical |
+
+**Note:** Full wiring of the rate limiter into `nobitex_client._request` is provided by the local script:
+
+```bat
+python tools/apply_phase1_client_patch.py
+```
+
 ## Risk and position sizing
 
 The shipped configuration uses explicit risk/exposure controls:
@@ -131,107 +149,37 @@ CryptoScanner-6.1.1-Nobitex-IRT/
 ├── pytest.ini
 │
 ├── analysis/
-│   ├── __init__.py
-│   ├── indicators.py
-│   ├── indicators_integration.py
-│   ├── risk.py
-│   └── signals.py
-│
 ├── api/
-│   ├── __init__.py
-│   ├── api_base.py
-│   └── api_tronscan.py
-│
 ├── core/
-│   ├── config.py
-│   ├── encryption.py
-│   ├── irt_money.py
-│   ├── user_manager.py
-│   ├── user_status.py
-│   └── utils.py
-│
-├── trading/
-│   ├── __init__.py
-│   ├── bot_config.py
-│   ├── exceptions.py
-│   ├── exchange_base.py
-│   ├── execution_mode.py
-│   ├── nobitex_client.py
-│   ├── nobitex_momentum_engine.py
-│   ├── regime_detector.py
-│   ├── trader.py
-│   └── utils.py
-│
-├── gui/
-│   ├── gui_main.py
-│   ├── unified_trading_window.py
-│   ├── trading_ui_helpers.py
-│   ├── ui_factory.py
-│   ├── ui_theme.py
-│   ├── dialogs/
-│   └── panels/
-│
-├── tests/
-│   ├── test_nobitex_irt.py
-│   ├── test_nobitex_momentum.py
-│   ├── test_live_fill_safety.py
-│   ├── test_signal_tracker.py
+│   ├── logger.py          # structured JSON + colored console
+│   ├── database.py        # SQLite WAL ledger
+│   ├── shutdown.py        # graceful SIGINT/SIGTERM
 │   └── ...
 │
+├── trading/
+│   ├── rate_limiter.py    # Token Bucket
+│   ├── retry_policy.py    # exponential backoff + jitter
+│   ├── idempotency.py     # two-phase order guard
+│   ├── watchdog.py        # thread health monitor
+│   ├── nobitex_client.py
+│   └── ...
+│
+├── gui/
+├── tests/
+│   └── test_phase1_hardening.py
+│
+├── tools/
+│   └── apply_phase1_client_patch.py
+│
 └── data/
-    ├── bot_config.json
-    ├── config.ini
-    └── .gitkeep
 ```
-
-## Main components
-
-### `trading/nobitex_client.py`
-Nobitex REST adapter with:
-- Ed25519 API-key signing
-- IRT/RLS normalization
-- market statistics
-- order book
-- candles
-- balances
-- order placement
-- order status
-- cancellation
-- bounded retry/backoff
-- rate-limit handling
-- authentication/authorization error separation
-
-### `trading/nobitex_momentum_engine.py`
-Local momentum detector. It maintains a short in-memory price history and scores candidates using:
-- observed movement
-- local tick momentum
-- spread
-- volume
-- confirmation count
-- chase distance
-- BTC regime protection
-
-### `signal_tracker.py`
-Execution and risk state:
-- paper/live separation
-- position sizing
-- exposure cap
-- stop/trailing logic
-- cooldowns
-- drawdown halt
-- fill verification
-- wallet reconciliation
-- SQLite trade history
 
 ## Testing
 
-Run:
-
 ```bat
 python -m pytest -q
+python -m pytest tests/test_phase1_hardening.py -q
 ```
-
-The final source tree contains no alternative exchange adapter or foreign exchange market-data provider.
 
 ## Operational recommendation
 
