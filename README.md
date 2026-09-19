@@ -68,6 +68,16 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+## Nobitex paper-data capture
+
+For a real-market observation session, the repository includes a **read-only** recorder. It never places or cancels orders. It records IRT movers and L2 order-book pressure so tomorrow's paper session can be measured against real Nobitex conditions.
+
+```bat
+py tools/nobitex_paper_capture.py --hours 8 --interval 15 --top 40
+```
+
+The default output is `data/nobitex_paper_capture.csv`. The recorder only uses public market/order-book endpoints and filters candidates at **3% 1-hour change** by default. Keep the normal application in **paper** execution mode while testing.
+
 ## Run
 
 ```bat
