@@ -264,6 +264,9 @@ class TestSignalTrackerIntegration(unittest.TestCase):
             )
             # ورود فوری برای اکثر تست‌های integration
             self.tracker.confirmation_enabled = False
+            # Integration tests use explicit pump-threshold tests where needed;
+            # keep legacy entry/limit tests focused on their intended behavior.
+            self.tracker.pump_threshold_pct = 0.0
 
     def tearDown(self):
         _close_tracker(self.tracker)
