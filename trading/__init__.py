@@ -21,6 +21,7 @@ __all__ = [
     "StrategySelector",
     "AutoRiskEngine",
     "ConfidenceScorer",
+    "AdaptivePipeline",
 ]
 
 try:
@@ -35,5 +36,6 @@ try:
     from .strategy_selector import StrategySelector
     from .auto_risk import AutoRiskEngine
     from .confidence import ConfidenceScorer
+    from .adaptive_pipeline import AdaptivePipeline
 except ImportError:
     pass
