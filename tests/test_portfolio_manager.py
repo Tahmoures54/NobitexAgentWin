@@ -88,6 +88,7 @@ class FakeTracker:
 
 def test_refresh_and_reconcile_reuses_same_wallet_snapshot(tmp_path):
     from core.database import Database
+    FakeExchange.total_snapshot_calls = 0
     exchange = FakeExchange()
     tracker = FakeTracker()
     manager = NobitexPortfolioManager(exchange, Database(str(tmp_path / "db.sqlite")))
@@ -96,4 +97,4 @@ def test_refresh_and_reconcile_reuses_same_wallet_snapshot(tmp_path):
 
     assert snapshot["reconciliation"]["checked"] == 1
     assert tracker.snapshots == [{"IRT": 1000000.0, "BTC": 0.01}]
-    assert FakeExchange.total_snapshot_calls == 2
+    assert FakeExchange.total_snapshot_calls == 1
