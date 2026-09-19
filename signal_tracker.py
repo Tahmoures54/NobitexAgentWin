@@ -427,7 +427,7 @@ class SignalTracker:
     # RECONCILE
     # ══════════════════════════════════════════════════════════════
 
-    def reconcile_open_positions(self) -> Dict[str, int]:
+    def reconcile_open_positions(self, balance_snapshot: Optional[Dict[str, float]] = None) -> Dict[str, int]:
         result = {"checked": 0, "closed_phantom": 0, "kept": 0, "resized": 0}
         if self.mode != "real" or not self.executor:
             return result
@@ -445,8 +445,17 @@ class SignalTracker:
 
         logger.info("Reconciling open positions with exchange balances...")
 
-        # FIX D: single snapshot
-        snapshot = self._get_balances_snapshot()
+        # FIX D: single snapshot. A Portfolio Manager snapshot may be
+        # supplied by the caller so the wallet endpoint is not hit twice
+        # in the same reconciliation cycle.
+        snapshot = balance_snapshot
+        if snapshot is not None:
+            try:
+                snapshot = {str(k).upper(): float(v) for k, v in snapshot.items()}
+            except (TypeError, ValueError):
+                snapshot = None
+        if snapshot is None:
+            snapshot = self._get_balances_snapshot()
 
         phantoms: List[Tuple[Dict[str, Any], float]] = []
         resizes: List[Tuple[Dict[str, Any], float]] = []
@@ -1396,6 +1405,12 @@ class SignalTracker:
                 time.sleep(FILL_POLL_INTERVAL)
                 continue
             last = status
+            record_fill = getattr(self.executor, "record_actual_fill", None)
+            if callable(record_fill) and isinstance(status, dict):
+                try:
+                    status["accounting"] = record_fill(status)
+                except Exception as exc:
+                    logger.debug("Actual-fill accounting hook failed: %s", exc)
             st = str((status or {}).get("status") or "").lower()
             if st in _TERMINAL_ORDER_STATUSES:
                 return status
@@ -1764,6 +1779,12 @@ class SignalTracker:
                 time.sleep(FILL_POLL_INTERVAL)
                 continue
             st = str(status.get("status") or "").lower()
+            record_fill = getattr(self.executor, "record_actual_fill", None)
+            if callable(record_fill) and isinstance(status, dict):
+                try:
+                    status["accounting"] = record_fill(status)
+                except Exception as exc:
+                    logger.debug("Actual-fill accounting hook failed: %s", exc)
             matched = self._order_matched_qty(status)
             if st != last_status or matched != last_matched:
                 logger.info("Order %s for %s: status=%s matched=%.8f",
@@ -1787,6 +1808,12 @@ class SignalTracker:
             self._cancel_unfilled_buy(order_id, symbol)
             try:
                 final_status = self.executor.get_order_status(order_id, symbol)
+                record_fill = getattr(self.executor, "record_actual_fill", None)
+                if callable(record_fill) and isinstance(final_status, dict):
+                    try:
+                        final_status["accounting"] = record_fill(final_status)
+                    except Exception as exc:
+                        logger.debug("Actual-fill accounting hook failed: %s", exc)
                 final_matched = self._order_matched_qty(final_status)
                 if final_matched > 0:
                     logger.warning("Order %s partial fill; remaining cancelled. matched=%.8f.",

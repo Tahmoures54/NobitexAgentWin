@@ -752,6 +752,11 @@ class NobitexClient(ExchangeBase):
             raise last_exc
         return {}
 
+    def get_balances_total_snapshot(self) -> Dict[str, float]:
+        """Return the latest total wallet snapshot without another API request."""
+        with self._lock:
+            return dict(self._balance_total_cache)
+
     def get_balance(self, asset: str) -> float:
         asset = (asset or "").upper()
         lookup_asset = "RLS" if asset in ("IRT", "IRR") else asset
@@ -831,7 +836,7 @@ class NobitexClient(ExchangeBase):
         order_type = order_type.lower().strip()
         execution = _EXECUTION_MAP.get(order_type, order_type)
 
-        client_order_id = f"cs{int(time.time() * 1000)}{random.randint(100, 999)}"
+        client_order_id = str(kwargs.pop("client_order_id", "") or "").strip() or f"cs{int(time.time() * 1000)}{random.randint(100, 999)}"
 
         body = {
             "type": side,
@@ -1071,8 +1076,17 @@ class NobitexClient(ExchangeBase):
                     avg_price = 0.0
 
         placed_qty = _safe_float(raw.get("amount") or raw.get("quantity"))
+        fee_value = _safe_float(
+            raw.get("fee") or raw.get("feeAmount") or raw.get("fee_amount")
+            or raw.get("commission") or raw.get("commissionAmount"),
+            -1.0,
+        )
+        fee_currency = (
+            raw.get("feeCurrency") or raw.get("fee_currency")
+            or raw.get("commissionAsset") or raw.get("commissionCurrency")
+        )
 
-        return {
+        parsed = {
             "order_id": order_id,
             "symbol": self._normalize_market_symbol(
                 raw.get("market") or raw.get("symbol") or ""
@@ -1091,6 +1105,10 @@ class NobitexClient(ExchangeBase):
             "update_time": raw.get("updatedAt") or raw.get("updated_at") or raw.get("update_time"),
             "raw": raw,
         }
+        if fee_value >= 0:
+            parsed["fee"] = fee_value
+            parsed["fee_currency"] = str(fee_currency).upper() if fee_currency else None
+        return parsed
 
     def get_diagnostics(self) -> Dict[str, Any]:
         with self._lock:

@@ -172,6 +172,12 @@ class BotConfig:
     trading_fee_pct: float = 0.1
     max_new_entries_per_cycle: int = 1
 
+    # ── Portfolio reconciliation ─────────────────────────────
+    # Exchange wallet is reconciled periodically; order mutations also
+    # trigger an immediate post-trade refresh.
+    portfolio_reconcile_every_scans: int = 3
+    portfolio_reconcile_min_interval_seconds: int = 30
+
     # ── Entry confirmation ───────────────────────────────────
     confirmation_enabled: bool = False
     confirmation_pct: float = 0.4
@@ -775,6 +781,10 @@ def validate_config(config: BotConfig) -> List[str]:
 
     if not (0 < c.risk_per_trade_pct <= 100):
         errors.append("risk_per_trade_pct must be between 0 and 100.")
+    if c.portfolio_reconcile_every_scans < 1:
+        errors.append("portfolio_reconcile_every_scans must be >= 1.")
+    if c.portfolio_reconcile_min_interval_seconds < 10:
+        errors.append("portfolio_reconcile_min_interval_seconds must be >= 10.")
     if c.max_open_positions < 1:
         errors.append("max_open_positions must be >= 1.")
     if c.stop_loss_pct <= 0:

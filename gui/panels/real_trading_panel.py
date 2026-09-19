@@ -108,6 +108,7 @@ class RealTradingPanel(tk.Frame):
         self.auto_trade_enabled = False
         self._last_closed_count = 0
         self._bot_start_time: Optional[datetime] = None
+        self._accounting_refresh_job: Optional[str] = None
         self._refresh_job: Optional[str] = None
         self._timer_job: Optional[str] = None
         self._updating = False
@@ -122,6 +123,7 @@ class RealTradingPanel(tk.Frame):
 
         self._apply_styles()
         self._build_ui()
+        # Accounting is populated from actual Nobitex fills; it never estimates P&L.
 
         self._start_btn.config(state="disabled")
         self._stop_btn.config(state="disabled")
@@ -134,6 +136,7 @@ class RealTradingPanel(tk.Frame):
         self._schedule_ui_pump()
         self._schedule_refresh()
         self._schedule_timer()
+        self._accounting_refresh_job = self.after(5000, self._schedule_accounting_refresh)
 
     def _load_cfg(self) -> BotConfig:
         try:
@@ -400,6 +403,14 @@ class RealTradingPanel(tk.Frame):
             else:
                 self._mode_hdr.config(text="Mode: PAPER | live entries off")
 
+    def _schedule_accounting_refresh(self) -> None:
+        if self._closing:
+            return
+        try:
+            self._refresh_accounting_now()
+        finally:
+            self._accounting_refresh_job = self.after(30000, self._schedule_accounting_refresh)
+
     def _on_bot_ready(self) -> None:
         if self._closing:
             return
@@ -542,6 +553,85 @@ class RealTradingPanel(tk.Frame):
         )
         return True
 
+    def _build_accounting_section(self, parent) -> None:
+        frame = tk.LabelFrame(
+            parent, text="📒  Actual Trading Accounting",
+            font=T.font(size=T.FONT_SM, weight="bold"),
+            bg=T.BG_APP, fg=T.PRIMARY, padx=T.PAD_MD, pady=T.PAD_MD,
+        )
+        frame.pack(fill="x", pady=(0, T.PAD_MD))
+        self._accounting_vars = {
+            "realized": tk.StringVar(value="—"),
+            "unrealized": tk.StringVar(value="—"),
+            "fees": tk.StringVar(value="—"),
+            "status": tk.StringVar(value="Not synced"),
+            "reconciliation": tk.StringVar(value="—"),
+            "updated": tk.StringVar(value="—"),
+        }
+        rows = [
+            ("Realized P&L:", "realized"),
+            ("Unrealized P&L:", "unrealized"),
+            ("Fees:", "fees"),
+            ("Ledger:", "status"),
+            ("Wallet reconciliation:", "reconciliation"),
+            ("Last update:", "updated"),
+        ]
+        for row, (label, key) in enumerate(rows):
+            tk.Label(frame, text=label, font=T.font(size=T.FONT_SM),
+                     bg=T.BG_APP, fg=T.TEXT_SECONDARY).grid(
+                row=row, column=0, sticky="w", pady=T.PAD_XS)
+            tk.Label(frame, textvariable=self._accounting_vars[key],
+                     font=T.font(size=T.FONT_SM, weight="bold"),
+                     bg=T.BG_APP, fg=T.TEXT_PRIMARY).grid(
+                row=row, column=1, sticky="w", padx=T.PAD_SM, pady=T.PAD_XS)
+
+        tk.Button(
+            frame, text="Refresh Accounting", command=self._refresh_accounting_now,
+            relief="flat", cursor="hand2", padx=T.PAD_MD, pady=4,
+        ).grid(row=0, column=2, rowspan=2, padx=(T.PAD_MD, 0), sticky="e")
+
+        frame.columnconfigure(1, weight=1)
+
+    def _refresh_accounting_now(self) -> None:
+        if not self.bot or not self._is_live_exchange():
+            return
+        threading.Thread(target=self._refresh_accounting_worker, daemon=True).start()
+
+    def _refresh_accounting_worker(self) -> None:
+        try:
+            sync = getattr(self.bot, "refresh_portfolio", None)
+            if not callable(sync):
+                raise RuntimeError("Portfolio accounting is not available.")
+            snapshot = sync(force=True, include_orders=True) or {}
+            accounting = snapshot.get("accounting") or {}
+            recon = snapshot.get("accounting_reconciliation") or {}
+            self._post_ui_callback(lambda: self._apply_accounting_snapshot(accounting, recon))
+        except Exception as exc:
+            logger.warning("Accounting dashboard refresh failed: %s", exc)
+            self._post_ui_callback(
+                lambda: self._accounting_vars["status"].set(f"Error: {exc}")
+            )
+
+    def _apply_accounting_snapshot(self, accounting: Dict[str, Any], recon: Dict[str, Any]) -> None:
+        unit = str(getattr(self.config, "quote_currency", "IRT") or "IRT").upper()
+        self._accounting_vars["realized"].set(
+            f"{float(accounting.get('realized_pnl_quote', 0.0) or 0.0):,.2f} {unit}"
+        )
+        self._accounting_vars["unrealized"].set(
+            f"{float(accounting.get('unrealized_pnl_quote', 0.0) or 0.0):,.2f} {unit}"
+        )
+        self._accounting_vars["fees"].set(
+            f"{float(accounting.get('fees_quote', 0.0) or 0.0):,.2f} {unit}"
+        )
+        complete = bool(accounting.get("accounting_complete", False))
+        self._accounting_vars["status"].set("Complete" if complete else "Incomplete — exchange data missing")
+        self._accounting_vars["updated"].set(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        if recon.get("reconciled"):
+            self._accounting_vars["reconciliation"].set("OK")
+        else:
+            count = len(recon.get("discrepancies") or [])
+            self._accounting_vars["reconciliation"].set(f"{count} discrepancy(s)")
+
     def _build_ui(self) -> None:
         self._build_top_bar()
         self._nb = ttk.Notebook(self)
@@ -550,6 +640,7 @@ class RealTradingPanel(tk.Frame):
         self._build_open_trades_tab()
         self._build_history_tab()
         self._build_status_tab()
+        self._build_accounting_section(self)
         self._build_status_bar()
 
     def _build_top_bar(self) -> None:
@@ -1368,6 +1459,11 @@ class RealTradingPanel(tk.Frame):
         if self._timer_job:
             try:
                 self.after_cancel(self._timer_job)
+            except Exception:
+                pass
+        if self._accounting_refresh_job:
+            try:
+                self.after_cancel(self._accounting_refresh_job)
             except Exception:
                 pass
 

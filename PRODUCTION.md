@@ -25,7 +25,7 @@ This document is the go-live checklist for operators. Completing it does **not**
 | Field | Value |
 |-------|--------|
 | Product | CryptoScanner — Nobitex IRT Edition |
-| Version | 6.2.x |
+| Version | 6.7.x |
 | Default execution | **Paper** |
 | Venue | Nobitex spot IRT only |
 
@@ -71,3 +71,32 @@ python main.py
 ## Disclaimer
 
 Trading involves loss of capital. This software is an assistant, not a guarantee.
+
+
+## Portfolio reconciliation — v6.7
+
+The main Nobitex live cycle now performs exchange-to-ledger reconciliation instead of treating the internal trade database as the complete account state.
+
+### Cycle behavior
+
+1. Every configured number of live scans, refresh the Nobitex wallet, current asset valuations, and open orders.
+2. Reuse that wallet snapshot when reconciling open live positions.
+3. Detect phantom/partial internal positions without issuing a second wallet request.
+4. After a BUY, fill/close, stop/trailing exit, or resize mutation, force an immediate portfolio reconciliation.
+5. Preserve unpriced assets as valuation_complete=false; never convert missing market data to zero value.
+6. Keep live execution gated when authentication, balance, exposure, or other safety checks fail.
+
+### Default cadence
+
+- portfolio_reconcile_every_scans = 3
+- portfolio_reconcile_min_interval_seconds = 30
+
+The cadence can be changed in bot_config.json.
+
+### End-to-end chain
+
+The intended live control chain is now:
+
+Nobitex market scan → candidate → BUY → fill confirmation → protective stop → trailing management → SELL/exit → wallet refresh → ledger reconciliation
+
+This is an execution-integrity feature, not a profitability guarantee. Live trading should remain on small allocation until the complete chain has been observed on the real account and the resulting ledger/portfolio snapshots have been checked.
