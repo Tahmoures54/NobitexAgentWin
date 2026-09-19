@@ -92,6 +92,30 @@ class TradeAccountingTests(unittest.TestCase):
         self.assertAlmostEqual(snap["assets"][0]["cost_basis_quote"], 222)
         self.assertAlmostEqual(snap["unrealized_pnl_quote"], -2)
 
+    def test_cumulative_partial_sell_uses_delta_quantity(self):
+        a = self.make()
+        a.ingest_order({
+            "order_id": "70", "symbol": "BTCIRT", "side": "buy",
+            "executed_qty": 20, "executed_price": 100,
+            "fee": 0, "fee_currency": "IRT",
+        })
+        first = a.ingest_order({
+            "order_id": "71", "symbol": "BTCIRT", "side": "sell",
+            "executed_qty": 5, "executed_price": 110,
+            "fee": 0, "fee_currency": "IRT",
+        })
+        second = a.ingest_order({
+            "order_id": "71", "symbol": "BTCIRT", "side": "sell",
+            "executed_qty": 10, "executed_price": 120,
+            "fee": 0, "fee_currency": "IRT",
+        })
+        self.assertEqual(first["status"], "recorded")
+        self.assertEqual(second["status"], "recorded")
+        snap = a.snapshot({"BTC": 120})
+        self.assertAlmostEqual(snap["assets"][0]["quantity"], 10)
+        self.assertAlmostEqual(snap["assets"][0]["cost_basis_quote"], 1000)
+        self.assertAlmostEqual(snap["realized_pnl_quote"], 150)
+
     def test_zero_fee_is_a_known_fee(self):
         a = self.make()
         result = a.ingest_order({
