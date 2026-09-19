@@ -303,11 +303,16 @@ class TestSignalTrackerIntegration(unittest.TestCase):
         stats = self.tracker.process_new_signals([row])
         self.assertEqual(stats["opened"], 0)
 
-    def test_generic_buy_signal_is_not_gated_by_trend_threshold(self):
+    def test_generic_buy_signal_requires_pump_threshold(self):
         self.tracker.pump_threshold_pct = 5.0
         stats = self.tracker.process_new_signals(
             [self._make_row("BTC", 100, "Buy Signal")]
         )
+        self.assertEqual(stats["opened"], 0)
+
+        row = self._make_row("ETH", 100, "Buy Signal")
+        row["1h Change (%)"] = 6.0
+        stats = self.tracker.process_new_signals([row])
         self.assertEqual(stats["opened"], 1)
 
     def test_open_and_close_long(self):
@@ -393,7 +398,12 @@ class TestSignalTrackerIntegration(unittest.TestCase):
 
         data2 = [self._make_row("BTC", 101, "Strong Buy", score=30)]
         stats2 = self.tracker.process_new_signals(data2)
-        self.assertEqual(stats2["opened"], 1)
+        self.assertEqual(stats2["opened"], 0)
+        self.assertGreaterEqual(stats2.get("pending", 0), 1)
+
+        data3 = [self._make_row("BTC", 101.6, "Strong Buy", score=30)]
+        stats3 = self.tracker.process_new_signals(data3)
+        self.assertEqual(stats3["opened"], 1)
         trades = self.tracker.get_all_trades()
         self.assertEqual(len([t for t in trades if t["status"] == "open"]), 1)
 
