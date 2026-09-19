@@ -628,6 +628,7 @@ class RealTradingPanel(tk.Frame):
         self._build_open_trades_tab()
         self._build_history_tab()
         self._build_status_tab()
+        self._build_accounting_section(self)
         self._build_status_bar()
 
     def _build_top_bar(self) -> None:
