@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.8.0] — Actual-fill accounting + portfolio reconciliation
+
+### Execution accounting
+- Actual matched quantity and execution price are recorded; intended order values are not treated as fills.
+- Reported Nobitex fees are captured when available; missing fee data keeps accounting explicitly incomplete.
+- Weighted-average spot cost basis with realized and unrealized P&L in IRT.
+- Idempotent handling of cumulative/partial order fills.
+- Wallet-vs-ledger reconciliation detects external, missing, or phantom holdings.
+- Accounting is refreshed after order mutations and periodically from the live Nobitex wallet.
+- Live panel exposes realized P&L, unrealized P&L, fees, completeness, reconciliation state, and refresh time.
+
+### Production safety
+- Live execution remains opt-in and retains the existing balance, exposure, idempotency, and authentication gates.
+- Paper remains the default execution mode.
+
+
 ## [6.2.0] — Production pack (Phase-1 + Phase-2)
 
 ### Production hardening (Phase-1)
