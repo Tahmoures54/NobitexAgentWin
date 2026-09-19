@@ -2726,16 +2726,15 @@ class SignalTracker:
                         else:
                             return False
                     else:
-                        actual_price = float(sell_order.get("executed_price") or price or 0.0)
-                        actual_qty = float(sell_order.get("executed_qty") or sell_qty)
-                        if actual_price <= 0:
-                            ticker_px = 0.0
-                            try:
-                                ticker = self.executor.get_ticker(rec["symbol"])
-                                ticker_px = float(ticker.get("last") or ticker.get("price") or 0.0)
-                            except Exception:
-                                ticker_px = 0.0
-                            actual_price = ticker_px or entry
+                        actual_price = self._order_execution_price(sell_order)
+                        actual_qty = safe_float(sell_order.get("executed_qty")) or self._order_matched_qty(sell_order)
+                        if actual_price <= 0 or actual_qty <= 0:
+                            logger.error(
+                                "[SAFETY] Manual close for %s has no exchange-reported execution "
+                                "price/quantity; position remains open for reconciliation.",
+                                rec["symbol"],
+                            )
+                            return False
                         entry_fee = actual_qty * entry * fee_pct / 100.0
                         exit_fee = actual_qty * actual_price * fee_pct / 100.0
                         gross = ((actual_price - entry) * actual_qty if rec["side"] == "long"
