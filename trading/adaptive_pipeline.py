@@ -170,12 +170,22 @@ class AdaptivePipeline:
             except Exception:
                 pass
 
+        strategy_performance: Dict[str, Dict[str, Any]] = {}
+        if tracker is not None:
+            try:
+                get_perf = getattr(tracker, "get_strategy_performance", None)
+                if callable(get_perf):
+                    strategy_performance = get_perf(100) or {}
+            except Exception as exc:
+                logger.debug("strategy performance unavailable: %s", exc)
+
         profile = self.selector.select(
             regime,
             volatility_pct=atr_pct,
             median_spread_pct=median_spread,
             breadth_24h=breadth,
             drawdown_pct=drawdown_pct,
+            performance=strategy_performance,
         )
         self._apply_profile_to_engine(profile)
 
@@ -260,6 +270,7 @@ class AdaptivePipeline:
             "regime": regime,
             "strategy": profile.name,
             "strategy_reason": self.selector.last_reason,
+            "strategy_performance": strategy_performance,
             "raw_candidates": len(raw_candidates),
             "accepted": len(accepted),
             "rejected": len(rejected),
