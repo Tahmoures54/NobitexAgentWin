@@ -1,4 +1,4 @@
-# CryptoScanner 6.1.0 — pinned runtime/test dependencies
+# CryptoScanner 6.2.0 — pinned runtime/test dependencies
 numpy==2.3.5
 pandas==2.2.3
 requests==2.32.5
