@@ -752,6 +752,11 @@ class NobitexClient(ExchangeBase):
             raise last_exc
         return {}
 
+    def get_balances_total_snapshot(self) -> Dict[str, float]:
+        """Return the latest total wallet snapshot without another API request."""
+        with self._lock:
+            return dict(self._balance_total_cache)
+
     def get_balance(self, asset: str) -> float:
         asset = (asset or "").upper()
         lookup_asset = "RLS" if asset in ("IRT", "IRR") else asset
