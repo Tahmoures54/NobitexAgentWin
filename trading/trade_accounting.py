@@ -142,16 +142,30 @@ class TradeAccounting:
         asset, _ = self._split_symbol(symbol, self.quote)
         fee, fee_currency = _fee_from_order(order)
         fee_known = fee is not None
-        fill_key = f"{order_id or client_id or symbol}:{side}:{qty:.16g}:{price:.16g}"
 
         now = datetime.now(timezone.utc).isoformat()
         with self._lock, self._connect() as conn:
-            existing = conn.execute("SELECT id FROM accounting_fills WHERE fill_key=?", (fill_key,)).fetchone()
-            if existing:
-                row = conn.execute("SELECT * FROM accounting_positions WHERE asset=?", (asset,)).fetchone()
-                return {"status": "duplicate", "accounting_complete": bool(row and row["quantity"] >= 0)}
-
-            gross = qty * price
+            prior = None
+            if order_id or client_id:
+                prior = conn.execute(
+                    """SELECT COALESCE(SUM(quantity),0) qty, COALESCE(SUM(gross_quote),0) gross,
+                              COALESCE(SUM(fee),0) fee, COUNT(*) count
+                       FROM accounting_fills
+                       WHERE (order_id=? AND order_id IS NOT NULL)
+                          OR (client_order_id=? AND client_order_id IS NOT NULL)""",
+                    (str(order_id) if order_id else None, str(client_id) if client_id else None),
+                ).fetchone()
+            prior_qty = float(prior["qty"] or 0.0) if prior else 0.0
+            prior_gross = float(prior["gross"] or 0.0) if prior else 0.0
+            prior_fee = float(prior["fee"] or 0.0) if prior else 0.0
+            if qty <= prior_qty + 1e-12:
+                return {"status": "duplicate", "accounting_complete": fee_known}
+            delta_qty = qty - prior_qty
+            delta_gross = max(0.0, qty * price - prior_gross)
+            price = delta_gross / delta_qty if delta_qty > 0 else price
+            if fee_known and prior and prior["count"]:
+                fee = max(0.0, fee - prior_fee)
+            gross = delta_qty * price
             fee_value_quote = 0.0
             if fee_known:
                 fee_currency_u = (fee_currency or "").upper()
