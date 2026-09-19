@@ -75,3 +75,25 @@ def test_unpriced_asset_marks_portfolio_incomplete(tmp_path):
     assert snapshot["unpriced_assets"] == ["XYZ"]
     assert snapshot["portfolio_value_quote"] == 1500000
     assert snapshot["assets"][1]["valuation_status"] == "unpriced"
+
+
+class FakeTracker:
+    def __init__(self):
+        self.snapshots = []
+
+    def reconcile_open_positions(self, balance_snapshot=None):
+        self.snapshots.append(dict(balance_snapshot or {}))
+        return {"checked": 1, "closed_phantom": 0, "kept": 1, "resized": 0}
+
+
+def test_refresh_and_reconcile_reuses_same_wallet_snapshot(tmp_path):
+    from core.database import Database
+    exchange = FakeExchange()
+    tracker = FakeTracker()
+    manager = NobitexPortfolioManager(exchange, Database(str(tmp_path / "db.sqlite")))
+
+    snapshot = manager.refresh_and_reconcile(tracker)
+
+    assert snapshot["reconciliation"]["checked"] == 1
+    assert tracker.snapshots == [{"IRT": 1000000.0, "BTC": 0.01}]
+    assert FakeExchange.total_snapshot_calls == 2
