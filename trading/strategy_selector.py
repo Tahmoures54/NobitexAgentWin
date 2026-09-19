@@ -120,10 +120,21 @@ _PROFILES: Dict[str, StrategyProfile] = {
 class StrategySelector:
     """Pick strategy profile from regime label + optional features."""
 
-    def __init__(self, profiles: Optional[Dict[str, StrategyProfile]] = None) -> None:
+    def __init__(
+        self,
+        profiles: Optional[Dict[str, StrategyProfile]] = None,
+        *,
+        switch_margin: float = 0.08,
+        min_trades_for_performance: int = 8,
+        switch_cooldown_scans: int = 3,
+    ) -> None:
         self.profiles = dict(profiles or _PROFILES)
         self.current: StrategyProfile = self.profiles[MOMENTUM]
         self.last_reason: str = "init"
+        self.switch_margin = max(0.0, float(switch_margin))
+        self.min_trades_for_performance = max(1, int(min_trades_for_performance))
+        self.switch_cooldown_scans = max(0, int(switch_cooldown_scans))
+        self._scans_since_switch = self.switch_cooldown_scans
 
     def select(
         self,
@@ -133,6 +144,7 @@ class StrategySelector:
         median_spread_pct: Optional[float] = None,
         breadth_24h: Optional[float] = None,
         drawdown_pct: Optional[float] = None,
+        performance: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> StrategyProfile:
         """
         Map regime → strategy, with soft overrides from live features.
@@ -174,6 +186,52 @@ class StrategySelector:
             reasons.append("balanced→momentum")
 
         profile = self.profiles.get(choice) or self.profiles[MOMENTUM]
+
+        # Profitability-aware governor: regime selects the candidate, then
+        # realized trade statistics may veto a weak strategy. Minimum sample
+        # and hysteresis prevent overfitting and scan-to-scan strategy flapping.
+        self._scans_since_switch += 1
+        if performance:
+            current_stats = performance.get(self.current.name, {}) or {}
+            candidate_stats = performance.get(profile.name, {}) or {}
+            cur_n = int(current_stats.get("trades", 0) or 0)
+            cand_n = int(candidate_stats.get("trades", 0) or 0)
+            cur_exp = float(current_stats.get("expectancy_pct", 0.0) or 0.0)
+            cand_exp = float(candidate_stats.get("expectancy_pct", 0.0) or 0.0)
+
+            if cand_n >= self.min_trades_for_performance and cand_exp < 0:
+                viable = [
+                    (name, stats) for name, stats in performance.items()
+                    if name in self.profiles
+                    and int((stats or {}).get("trades", 0) or 0) >= self.min_trades_for_performance
+                    and float((stats or {}).get("expectancy_pct", 0.0) or 0.0) > 0
+                ]
+                if viable:
+                    viable.sort(
+                        key=lambda x: float((x[1] or {}).get("expectancy_pct", 0.0) or 0.0),
+                        reverse=True,
+                    )
+                    alt_name, _ = viable[0]
+                    profile = self.profiles[alt_name]
+                    reasons.append(f"performance_veto {choice}:exp={cand_exp:.3f}%->{alt_name}")
+                    choice = alt_name
+
+            if profile.name != self.current.name and self._scans_since_switch < self.switch_cooldown_scans:
+                profile = self.current
+                reasons.append("switch_cooldown")
+            elif profile.name != self.current.name:
+                target_stats = performance.get(profile.name, {}) or {}
+                target_n = int(target_stats.get("trades", 0) or 0)
+                target_exp = float(target_stats.get("expectancy_pct", 0.0) or 0.0)
+                if target_n >= self.min_trades_for_performance and cur_n >= self.min_trades_for_performance:
+                    if target_exp < cur_exp + self.switch_margin:
+                        profile = self.current
+                        reasons.append(
+                            f"switch_margin target={target_exp:.3f}% current={cur_exp:.3f}%"
+                        )
+
+        if profile.name != self.current.name:
+            self._scans_since_switch = 0
         self.current = profile
         self.last_reason = "; ".join(reasons)
         logger.info("Strategy selected: %s (%s)", profile.name, self.last_reason)
