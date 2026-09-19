@@ -1405,6 +1405,12 @@ class SignalTracker:
                 time.sleep(FILL_POLL_INTERVAL)
                 continue
             last = status
+            record_fill = getattr(self.executor, "record_actual_fill", None)
+            if callable(record_fill) and isinstance(status, dict):
+                try:
+                    status["accounting"] = record_fill(status)
+                except Exception as exc:
+                    logger.debug("Actual-fill accounting hook failed: %s", exc)
             st = str((status or {}).get("status") or "").lower()
             if st in _TERMINAL_ORDER_STATUSES:
                 return status
@@ -1796,6 +1802,12 @@ class SignalTracker:
             self._cancel_unfilled_buy(order_id, symbol)
             try:
                 final_status = self.executor.get_order_status(order_id, symbol)
+                record_fill = getattr(self.executor, "record_actual_fill", None)
+                if callable(record_fill) and isinstance(final_status, dict):
+                    try:
+                        final_status["accounting"] = record_fill(final_status)
+                    except Exception as exc:
+                        logger.debug("Actual-fill accounting hook failed: %s", exc)
                 final_matched = self._order_matched_qty(final_status)
                 if final_matched > 0:
                     logger.warning("Order %s partial fill; remaining cancelled. matched=%.8f.",
