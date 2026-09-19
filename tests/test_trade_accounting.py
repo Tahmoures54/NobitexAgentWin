@@ -73,7 +73,37 @@ class TradeAccountingTests(unittest.TestCase):
         self.assertFalse(result["accounting_complete"])
         self.assertFalse(a.snapshot()["accounting_complete"])
 
+    def test_cumulative_partial_fill_does_not_double_count_position(self):
+        a = self.make()
+        first = a.ingest_order({
+            "order_id": "50", "symbol": "BTCIRT", "side": "buy",
+            "executed_qty": 1, "executed_price": 100,
+            "fee": 1, "fee_currency": "IRT",
+        })
+        second = a.ingest_order({
+            "order_id": "50", "symbol": "BTCIRT", "side": "buy",
+            "executed_qty": 2, "executed_price": 110,
+            "fee": 2, "fee_currency": "IRT",
+        })
+        self.assertEqual(first["status"], "recorded")
+        self.assertEqual(second["status"], "recorded")
+        snap = a.snapshot({"BTC": 110})
+        self.assertAlmostEqual(snap["assets"][0]["quantity"], 2)
+        self.assertAlmostEqual(snap["assets"][0]["cost_basis_quote"], 222)
+        self.assertAlmostEqual(snap["unrealized_pnl_quote"], -2)
+
+    def test_zero_fee_is_a_known_fee(self):
+        a = self.make()
+        result = a.ingest_order({
+            "order_id": "60", "symbol": "ETHIRT", "side": "buy",
+            "executed_qty": 1, "executed_price": 100,
+            "fee": 0, "fee_currency": "IRT",
+        })
+        self.assertTrue(result["accounting_complete"])
+        self.assertAlmostEqual(a.snapshot()["fees_quote"], 0)
+
     def test_wallet_reconciliation_detects_external_or_missing_holdings(self):
+
         a = self.make()
         a.ingest_order({
             "order_id": "40", "symbol": "BTCIRT", "side": "buy",
