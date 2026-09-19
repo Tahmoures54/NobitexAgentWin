@@ -166,6 +166,7 @@ class TradeAccounting:
             if fee_known and prior and prior["count"]:
                 fee = max(0.0, fee - prior_fee)
             gross = delta_qty * price
+            fill_key = f"{order_id or client_id or symbol}:{side}:{qty:.16g}"
             fee_value_quote = 0.0
             if fee_known:
                 fee_currency_u = (fee_currency or "").upper()
@@ -183,7 +184,7 @@ class TradeAccounting:
                  gross_quote,fee,fee_currency,executed_at,accounting_complete,raw_response)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (fill_key, str(order_id) if order_id else None,
-                 str(client_id) if client_id else None, symbol, asset, side, qty,
+                 str(client_id) if client_id else None, symbol, asset, side, delta_qty,
                  price, gross, fee, fee_currency, str(order.get("time") or now),
                  int(fee_known), str(order.get("raw") or order)),
             )
@@ -237,11 +238,12 @@ class TradeAccounting:
         prices = prices or {}
         with self._lock, self._connect() as conn:
             rows = conn.execute("SELECT * FROM accounting_positions ORDER BY asset").fetchall()
+            incomplete_fills = conn.execute("SELECT COUNT(*) FROM accounting_fills WHERE accounting_complete=0").fetchone()[0]
         assets = []
         realized = 0.0
         fees = 0.0
         unrealized = 0.0
-        complete = True
+        complete = incomplete_fills == 0
         for row in rows:
             asset = row["asset"]
             qty = float(row["quantity"])
