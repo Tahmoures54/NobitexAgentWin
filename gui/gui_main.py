@@ -524,6 +524,53 @@ class CryptoScannerApp:
 
         strategy_key = str(mapping.get(regime, "balanced")).strip().lower()
 
+        # Profitability governor: regime still determines the initial
+        # strategy, but a strategy with enough realized trades and negative
+        # expectancy can be vetoed in favor of a proven positive alternative.
+        strategy_alias = {
+            "aggressive": "TREND_FOLLOWING",
+            "trend": "TREND_FOLLOWING",
+            "balanced": "MOMENTUM",
+            "conservative": "MEAN_REVERSION",
+            "scalping": "SCALPING",
+            "crisis": "DEFENSIVE",
+        }
+        perf_by_tracker: Dict[str, Dict[str, Any]] = {}
+        for tracker in (self.real_signal_tracker, self.signal_tracker):
+            if tracker is None:
+                continue
+            try:
+                getter = getattr(tracker, "get_strategy_performance", None)
+                if callable(getter):
+                    perf_by_tracker = getter(100) or {}
+                    break
+            except Exception as exc:
+                logger.debug("[REGIME] Strategy performance unavailable: %s", exc)
+
+        canonical = strategy_alias.get(strategy_key)
+        candidate_perf = perf_by_tracker.get(canonical, {}) if canonical else {}
+        candidate_n = int(candidate_perf.get("trades", 0) or 0)
+        candidate_exp = float(candidate_perf.get("expectancy_pct", 0.0) or 0.0)
+        min_sample = 8
+        if candidate_n >= min_sample and candidate_exp < 0:
+            alternatives = []
+            for preset_key, canonical_name in strategy_alias.items():
+                stats = perf_by_tracker.get(canonical_name, {}) or {}
+                n = int(stats.get("trades", 0) or 0)
+                exp = float(stats.get("expectancy_pct", 0.0) or 0.0)
+                if n >= min_sample and exp > 0:
+                    alternatives.append((exp, preset_key, canonical_name))
+            if alternatives:
+                alternatives.sort(reverse=True)
+                best_exp, best_key, _ = alternatives[0]
+                if best_key != strategy_key:
+                    logger.warning(
+                        "[REGIME] Profitability veto: %s expectancy=%.3f%%; "
+                        "switching to %s expectancy=%.3f%%",
+                        strategy_key, candidate_exp, best_key, best_exp,
+                    )
+                    strategy_key = best_key
+
         try:
             from gui.dialogs.settings_window import STRATEGY_PRESETS
         except Exception:
@@ -1187,6 +1234,9 @@ class CryptoScannerApp:
                     hit = candidate_map.get(str(row.get("Symbol", "")).upper())
                     if hit:
                         self._apply_global_lead_hit(row, hit)
+                        active_strategy = getattr(self, "_last_applied_regime_strategy", None)
+                        if active_strategy:
+                            row["Strategy"] = active_strategy
                         is_eagle = bool(hit.get("EagleException"))
                         marker = "🦅" if is_eagle else "🎯"
                         logger.info(
