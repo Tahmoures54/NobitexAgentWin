@@ -831,7 +831,7 @@ class NobitexClient(ExchangeBase):
         order_type = order_type.lower().strip()
         execution = _EXECUTION_MAP.get(order_type, order_type)
 
-        client_order_id = f"cs{int(time.time() * 1000)}{random.randint(100, 999)}"
+        client_order_id = str(kwargs.pop("client_order_id", "") or "").strip() or f"cs{int(time.time() * 1000)}{random.randint(100, 999)}"
 
         body = {
             "type": side,
