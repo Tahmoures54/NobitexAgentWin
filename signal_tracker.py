@@ -1559,8 +1559,10 @@ class SignalTracker:
         return {"action": "update_sl", "rec": rec, "ev": ev, "new_stop_id": new_stop_id}
 
     def _apply_fill_to_ev(self, rec, ev, sell_order, sell_qty, entry, base_risk):
-        actual_exit_price = float(sell_order.get("executed_price") or ev["exit_price"])
-        actual_qty = float(sell_order.get("executed_qty") or sell_qty)
+        actual_exit_price = self._order_execution_price(sell_order)
+        actual_qty = safe_float(sell_order.get("executed_qty")) or self._order_matched_qty(sell_order)
+        if actual_exit_price <= 0 or actual_qty <= 0:
+            raise ValueError("Exchange did not report actual exit quantity and execution price.")
         fee_pct = float(base_risk.get("trading_fee_pct", 0.1))
         net_p = SignalTracker._compute_net_pnl_pct(rec["side"], entry, actual_exit_price, fee_pct)
         entry_fee = actual_qty * entry * fee_pct / 100.0
@@ -1729,6 +1731,23 @@ class SignalTracker:
             raw_matched = safe_float(raw.get("matchedAmount") or raw.get("matched_amount")) or 0.0
             if raw_matched > 0:
                 return float(raw_matched)
+        return 0.0
+
+    @staticmethod
+    def _order_execution_price(order) -> float:
+        """Return only an exchange-reported execution price; never infer it."""
+        if not isinstance(order, dict):
+            return 0.0
+        for key in ("executed_price", "average_price", "averagePrice"):
+            value = safe_float(order.get(key))
+            if value and value > 0:
+                return float(value)
+        raw = order.get("raw")
+        if isinstance(raw, dict):
+            for key in ("executedPrice", "averagePrice", "avg_price", "avgPrice"):
+                value = safe_float(raw.get(key))
+                if value and value > 0:
+                    return float(value)
         return 0.0
 
     def _cancel_unfilled_buy(self, order_id, symbol) -> None:
@@ -1941,9 +1960,15 @@ class SignalTracker:
                 self._entry_failure(cur, asset_key, symbol, "no_fill")
                 return False
 
-            executed_price = float(buy_order.get("executed_price") or entry_price)
+            executed_price = self._order_execution_price(buy_order)
             if executed_price <= 0:
-                executed_price = entry_price
+                logger.error(
+                    "[SAFETY] Buy %s matched=%.8f but exchange reported no execution price; "
+                    "keeping local position unopened for reconciliation.",
+                    symbol, matched_qty,
+                )
+                self._entry_failure(cur, asset_key, symbol, "execution_price_missing")
+                return False
 
             time.sleep(1.5)
             base_asset = self._extract_base_asset(symbol)
