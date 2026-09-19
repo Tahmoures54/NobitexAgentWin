@@ -6,11 +6,12 @@ Provides:
 - ATR-based stop distance
 - Chandelier-style trailing activation
 - Max drawdown circuit breaker (halt new entries)
+
+Defaults aligned with data/bot_config.json conservative pre-sample profile.
 """
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -47,23 +48,20 @@ class AutoRiskEngine:
     def __init__(
         self,
         *,
-        # Sizing
-        risk_fraction: float = 0.01,          # risk ~1% of equity per trade
-        kelly_fraction: float = 0.25,         # fractional Kelly (quarter)
+        risk_fraction: float = 0.005,         # 0.5% equity risk per trade
+        kelly_fraction: float = 0.25,
         min_notional_irt: float = 500_000.0,
-        max_notional_irt: float = 5_000_000.0,
-        max_exposure_pct: float = 0.90,
-        # Default stops (pct)
+        max_notional_irt: float = 3_000_000.0,
+        max_exposure_pct: float = 0.30,
         base_stop_pct: float = 3.0,
-        base_trail_act_pct: float = 3.0,
-        base_trail_dist_pct: float = 2.0,
-        base_tp_pct: float = 50.0,
-        # ATR scaling
+        base_trail_act_pct: float = 1.5,
+        base_trail_dist_pct: float = 1.2,
+        base_tp_pct: float = 0.0,             # trail-driven exits by default
         atr_stop_mult: float = 1.5,
         atr_trail_mult: float = 2.0,
-        # Circuit breaker
-        max_drawdown_pct: float = 15.0,
+        max_drawdown_pct: float = 12.0,
         halt_on_breaker: bool = True,
+        kelly_enabled: bool = False,         # off until sample proven
     ) -> None:
         self.risk_fraction = float(risk_fraction)
         self.kelly_fraction = float(kelly_fraction)
@@ -78,16 +76,17 @@ class AutoRiskEngine:
         self.atr_trail_mult = float(atr_trail_mult)
         self.max_drawdown_pct = float(max_drawdown_pct)
         self.halt_on_breaker = bool(halt_on_breaker)
+        self.kelly_enabled = bool(kelly_enabled)
 
     def compute(
         self,
         *,
         equity_irt: float,
         open_exposure_irt: float = 0.0,
-        win_rate: Optional[float] = None,       # 0..1
+        win_rate: Optional[float] = None,
         avg_win_pct: Optional[float] = None,
         avg_loss_pct: Optional[float] = None,
-        atr_pct: Optional[float] = None,        # ATR as % of price
+        atr_pct: Optional[float] = None,
         drawdown_pct: Optional[float] = None,
         strategy_aggression: float = 0.5,
         method: str = "fractional",
@@ -95,7 +94,6 @@ class AutoRiskEngine:
         reasons = []
         allow = True
 
-        # ── Circuit breaker ────────────────────────────────────
         if drawdown_pct is not None and drawdown_pct >= self.max_drawdown_pct:
             allow = not self.halt_on_breaker
             reasons.append(f"max_dd_breaker={drawdown_pct:.1f}%")
@@ -115,35 +113,40 @@ class AutoRiskEngine:
         exposure = max(0.0, float(open_exposure_irt))
         remaining = max(0.0, equity * self.max_exposure_pct - exposure)
 
-        # ── Stop geometry (ATR-aware) ──────────────────────────
         stop_pct = self.base_stop_pct
         trail_act = self.base_trail_act_pct
         trail_dist = self.base_trail_dist_pct
         if atr_pct is not None and atr_pct > 0:
             stop_pct = max(1.0, min(12.0, atr_pct * self.atr_stop_mult))
             trail_dist = max(0.8, min(8.0, atr_pct * self.atr_trail_mult))
-            trail_act = max(stop_pct, trail_dist)
+            trail_act = max(stop_pct * 0.5, min(trail_act, trail_dist))
             reasons.append(f"atr_pct={atr_pct:.2f}")
 
-        # ── Position notional ──────────────────────────────────
         method_l = (method or "fractional").lower()
+        if method_l == "kelly_lite" and not self.kelly_enabled:
+            method_l = "fractional"
+            reasons.append("kelly_disabled")
+
         notional = self.min_notional_irt
 
-        if method_l == "kelly_lite" and win_rate and avg_win_pct and avg_loss_pct:
-            # Kelly f* = W - (1-W)/(avg_win/avg_loss)  for net odds
+        if (
+            method_l == "kelly_lite"
+            and self.kelly_enabled
+            and win_rate
+            and avg_win_pct
+            and avg_loss_pct
+        ):
             w = max(0.05, min(0.95, float(win_rate)))
             aw = max(0.1, float(avg_win_pct))
             al = max(0.1, float(avg_loss_pct))
             b = aw / al
             kelly = w - (1.0 - w) / b
             kelly = max(0.0, kelly) * self.kelly_fraction
-            # Convert Kelly fraction of equity into notional capped by stop
             risk_budget = equity * kelly
             notional = risk_budget / (stop_pct / 100.0) if stop_pct > 0 else risk_budget
             reasons.append(f"kelly_lite={kelly:.3f}")
             method_l = "kelly_lite"
         else:
-            # Fixed fractional: risk_fraction of equity / stop distance
             risk_budget = equity * self.risk_fraction * (0.5 + strategy_aggression)
             notional = risk_budget / (stop_pct / 100.0) if stop_pct > 0 else risk_budget
             reasons.append(f"fractional_risk={self.risk_fraction}")
@@ -155,10 +158,7 @@ class AutoRiskEngine:
             allow = False
             reasons.append("insufficient_room")
 
-        # Slightly tighter TP when defensive aggression is low
         tp = self.base_tp_pct
-        if strategy_aggression < 0.3:
-            tp = min(tp, 25.0)
 
         return RiskDecision(
             position_notional_irt=round(notional, 0),
