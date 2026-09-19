@@ -56,6 +56,7 @@ from typing import Any, Dict, List, Optional
 
 from .bot_config import BotConfig, load_config, validate_config
 from .exchange_base import ExchangeBase
+from .idempotency import IdempotencyGuard
 
 
 logger = logging.getLogger("TradingBot")
@@ -241,6 +242,7 @@ class TradingBot:
         self.running = False
         self.closed = False
         self.lock = threading.RLock()
+        self.idempotency = IdempotencyGuard()
 
         self.exchange_name = (
             getattr(self.config, "exchange", "simulator") or "simulator"
@@ -879,6 +881,36 @@ class TradingBot:
                 }
 
         execution_symbol = self.normalize_symbol_for_execution(symbol)
+
+        # v6.6 live BUY guard: validate estimated quote notional against
+        # fresh balance and configured position caps before network mutation.
+        client_order_id = kwargs.pop("client_order_id", None)
+        if self.exchange_name == "nobitex" and side == "buy":
+            ref_price = _safe_float(price, None)
+            if ref_price is None or ref_price <= 0:
+                try:
+                    ticker = self.exchange.get_ticker(execution_symbol)
+                    ref_price = _safe_float(ticker.get("ask") or ticker.get("Ask") or ticker.get("last") or ticker.get("price"), None)
+                except Exception as exc:
+                    return {"status":"rejected","order_id":None,"message":f"Live buy blocked: price unavailable ({exc}).","reason":"price_unavailable"}
+            if ref_price is None or ref_price <= 0:
+                return {"status":"rejected","order_id":None,"message":"Live buy blocked: invalid reference price.","reason":"invalid_reference_price"}
+            notional = quantity_value * ref_price
+            max_notional = _safe_float(getattr(self.config, "max_notional_quote", None), None)
+            max_pct = _safe_float(getattr(self.config, "max_position_pct", None), None)
+            min_notional = _safe_float(getattr(self.config, "min_notional_quote", 0.0), 0.0) or 0.0
+            if min_notional > 0 and notional < min_notional:
+                return {"status":"rejected","order_id":None,"message":f"Live buy blocked: notional {notional:.2f} below minimum {min_notional:.2f}.","reason":"below_min_notional"}
+            if max_notional and max_notional > 0 and notional > max_notional:
+                return {"status":"rejected","order_id":None,"message":f"Live buy blocked: notional {notional:.2f} exceeds cap {max_notional:.2f}.","reason":"max_notional_exceeded"}
+            equity = self.get_balance_fresh(self.quote_currency)
+            if equity is None or equity <= 0:
+                return {"status":"rejected","order_id":None,"message":"Live buy blocked: fresh quote balance unavailable.","reason":"balance_unavailable"}
+            if max_pct and max_pct > 0 and notional > equity * max_pct / 100.0:
+                return {"status":"rejected","order_id":None,"message":f"Live buy blocked: notional {notional:.2f} exceeds {max_pct:.2f}% position cap.","reason":"max_position_pct_exceeded"}
+            fee_pct = max(0.0, _safe_float(getattr(self.config, "trading_fee_pct", 0.25), 0.25) or 0.25)
+            if notional > equity * (1.0 - fee_pct / 100.0):
+                return {"status":"rejected","order_id":None,"message":"Live buy blocked: order plus estimated fee exceeds available quote balance.","reason":"insufficient_quote_after_fee"}
         if execution_symbol != symbol:
             logger.info("Execution symbol normalized: %s -> %s", symbol, execution_symbol)
 
@@ -906,12 +938,17 @@ class TradingBot:
                 }
 
         try:
+            client_order_id = self.idempotency.prepare(
+                symbol=execution_symbol, side=side, order_type=order_type,
+                amount=quantity_value, price=price, client_order_id=client_order_id,
+            )
             raw_order = self.exchange.place_order(
                 symbol=execution_symbol,
                 side=side,
                 order_type=order_type,
                 quantity=quantity_value,
                 price=price,
+                client_order_id=client_order_id,
                 **kwargs,
             )
 
@@ -926,11 +963,18 @@ class TradingBot:
                     "raw_response": raw_order,
                 }
 
+            status = str(raw_order.get("status", "") or "").strip().lower()
+            self.idempotency.confirm(
+                client_order_id, exchange_order_id=str(raw_order.get("order_id") or "") or None,
+                status=status or "submitted",
+                filled_amount=_safe_float(raw_order.get("executed_qty") or raw_order.get("matched_amount"), None),
+                raw_response=raw_order,
+            )
             with self.lock:
                 self.last_order = raw_order
                 self.last_order_timestamp = time.time()
 
-            status = str(raw_order.get("status", "") or "").strip().lower()
+            
             if not status:
                 status = str(raw_order.get("state", "") or "").strip().lower()
 
@@ -986,13 +1030,20 @@ class TradingBot:
                 }
 
             if _is_server_error(exc) or _is_network_error(exc):
+                try:
+                    self.idempotency.confirm(client_order_id, status="unknown", raw_response={"error": str(exc)})
+                except Exception:
+                    pass
                 return {
-                    "status": "error", "order_id": None,
-                    "message": str(exc),
-                    "reason": "exchange_unavailable",
+                    "status": "unknown", "order_id": None, "client_order_id": client_order_id,
+                    "message": str(exc), "reason": "exchange_unavailable_reconcile_required",
                 }
 
             if _is_client_error(exc):
+                try:
+                    self.idempotency.mark_failed(client_order_id, str(exc))
+                except Exception:
+                    pass
                 # FIX v6.4.0: surface the exchange's own 4xx message.
                 return {
                     "status": "rejected", "order_id": None,
