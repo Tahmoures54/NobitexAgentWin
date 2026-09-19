@@ -382,6 +382,23 @@ class TradingBot:
             force=force,
             include_orders=include_orders,
         )
+        if self.trade_accounting is not None:
+            try:
+                prices = {
+                    str(item.get("asset") or "").upper(): _safe_float(item.get("price"), None)
+                    for item in snapshot.get("assets", [])
+                    if isinstance(item, dict) and item.get("asset")
+                }
+                wallet = {
+                    str(item.get("asset") or "").upper(): _safe_float(item.get("available"), 0.0) or 0.0
+                    for item in snapshot.get("assets", [])
+                    if isinstance(item, dict) and item.get("asset")
+                }
+                snapshot["accounting"] = self.trade_accounting.snapshot(prices)
+                snapshot["accounting_reconciliation"] = self.trade_accounting.reconcile_wallet(wallet)
+            except Exception as accounting_exc:
+                logger.warning("Portfolio accounting snapshot failed: %s", accounting_exc)
+                snapshot["accounting"] = {"accounting_complete": False, "error": str(accounting_exc)}
         portfolio_value = _safe_float(snapshot.get("portfolio_value_quote"), None)
         if portfolio_value is not None and portfolio_value >= 0:
             self.current_balance = portfolio_value
