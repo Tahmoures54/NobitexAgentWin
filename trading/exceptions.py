@@ -100,6 +100,27 @@ class ServerExchangeError(ExchangeError):
         )
 
 
+class ExchangeClientError(ExchangeError):
+    """Non-retryable 4xx client errors that are NOT symbol-not-found.
+
+    Examples: OverValueOrder, InsufficientBalance, InvalidAmount,
+    ValidationFailed, OrderRejected, ...
+    """
+
+    def __init__(
+        self,
+        message: str = "Exchange client error.",
+        *,
+        status_code: Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            message,
+            status_code=status_code,
+            retryable=False,
+            fatal=False,
+        )
+
+
 class BalanceUnavailableError(ExchangeError):
     """
     Account balance could not be obtained.
