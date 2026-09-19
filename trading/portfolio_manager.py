@@ -153,6 +153,37 @@ class NobitexPortfolioManager:
             # into a false account failure.
             logger.warning("Portfolio snapshot persistence failed: %s", exc)
 
+    def refresh_and_reconcile(
+        self,
+        tracker: Any,
+        *,
+        force: bool = True,
+        include_orders: bool = True,
+    ) -> Dict[str, Any]:
+        """Refresh the exchange portfolio and reconcile the internal ledger.
+
+        The wallet snapshot is passed directly to the tracker so one cycle
+        performs one wallet read instead of fetching balances twice.
+        """
+        if tracker is None or not callable(getattr(tracker, "reconcile_open_positions", None)):
+            raise ValueError("A SignalTracker with reconcile_open_positions() is required.")
+
+        snapshot = self.refresh(force=force, include_orders=include_orders)
+        balance_snapshot: Dict[str, float] = {}
+        quote = str(snapshot.get("quote_currency") or self.quote).upper()
+        balance_snapshot[quote] = _f(snapshot.get("quote_available"))
+        for asset in snapshot.get("assets", []) or []:
+            key = str(asset.get("asset") or "").upper()
+            if key:
+                balance_snapshot[key] = _f(asset.get("available"))
+
+        reconciliation = tracker.reconcile_open_positions(balance_snapshot=balance_snapshot)
+        snapshot["reconciliation"] = reconciliation
+        snapshot["reconciled_at"] = time.time()
+        self.last_snapshot = snapshot
+        self._persist(snapshot)
+        return snapshot
+
     def get_snapshot(self) -> Optional[Dict[str, Any]]:
         if self.last_snapshot is not None:
             return self.last_snapshot
