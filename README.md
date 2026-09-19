@@ -99,6 +99,19 @@ data/bot_config.json
 **Paper → measure expectancy (after fees) → tune → small live → scale only with evidence**
 
 
+## v6.8 — Actual-Fill Accounting & P&L
+
+The live trading panel now surfaces accounting derived from actual Nobitex execution data:
+
+- Realized and unrealized P&L in the configured quote currency.
+- Reported trading fees, without inventing missing fee data.
+- Weighted-average cost basis for spot holdings.
+- Wallet-vs-ledger reconciliation and discrepancy count.
+- A visible accounting completeness state and last-refresh timestamp.
+- Manual refresh plus a background refresh every 30 seconds while the live panel is open.
+
+Accounting is separate from the strategy journal and is intended to reflect exchange execution economics rather than planned order values.
+
 ## v6.7 Portfolio Reconciliation
 
 The live Nobitex cycle now treats the exchange wallet as the account source of truth.
