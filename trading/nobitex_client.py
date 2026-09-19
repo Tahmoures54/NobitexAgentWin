@@ -1062,23 +1062,30 @@ class NobitexClient(ExchangeBase):
             price = _safe_float(price_value)
 
         executed_qty = matched_amount
+        # Accounting must use an exchange-reported execution price.
+        # Never substitute the live ticker for a fill price.
         avg_price = _safe_float(
-            raw.get("averagePrice") or raw.get("avg_price") or raw.get("executedPrice")
+            raw.get("averagePrice")
+            if raw.get("averagePrice") is not None else
+            raw.get("avg_price")
+            if raw.get("avg_price") is not None else
+            raw.get("executedPrice")
         )
 
-        if avg_price <= 0 and matched_amount > 0:
-            symbol = raw.get("market") or raw.get("symbol") or ""
-            if symbol:
-                try:
-                    ticker = self.get_ticker(symbol)
-                    avg_price = _safe_float(ticker.get("last") or ticker.get("price"))
-                except Exception:
-                    avg_price = 0.0
-
         placed_qty = _safe_float(raw.get("amount") or raw.get("quantity"))
+
+        # Preserve a reported zero fee. Using logical-or fallbacks here would
+        # turn a real zero into the fallback sentinel.
         fee_value = _safe_float(
-            raw.get("fee") or raw.get("feeAmount") or raw.get("fee_amount")
-            or raw.get("commission") or raw.get("commissionAmount"),
+            raw.get("fee")
+            if raw.get("fee") is not None else
+            raw.get("feeAmount")
+            if raw.get("feeAmount") is not None else
+            raw.get("fee_amount")
+            if raw.get("fee_amount") is not None else
+            raw.get("commission")
+            if raw.get("commission") is not None else
+            raw.get("commissionAmount"),
             -1.0,
         )
         fee_currency = (
