@@ -64,18 +64,22 @@ class NobitexPortfolioManager:
         quote_total = 0.0
 
         seen = set()
+        quote_aliases = {"IRT", "RLS", "IRR"} if self.quote == "IRT" else {self.quote}
         for raw_asset, raw_available in balances.items():
             asset = str(raw_asset or "").upper()
-            if not asset or asset in seen or asset in ("RLS", "IRR") and "IRT" in balances:
+            if not asset:
                 continue
-            if asset == "RLS":
-                asset = "IRT"
+            if asset in quote_aliases:
+                asset = self.quote
             if asset in seen:
                 continue
             seen.add(asset)
 
             available = _f(raw_available)
-            total = _f(totals.get(raw_asset, available), available)
+            total = _f(
+                totals.get(raw_asset, totals.get(asset, available)),
+                available,
+            )
             if asset == self.quote:
                 quote_available = available
                 quote_total = total
