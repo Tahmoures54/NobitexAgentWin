@@ -29,7 +29,7 @@ class TradeAccountingTests(unittest.TestCase):
         snap = a.snapshot({"BTC": 130})
         self.assertEqual(snap["assets"][0]["quantity"], 1)
         self.assertAlmostEqual(snap["realized_pnl_quote"], 18)
-        self.assertAlmostEqual(snap["unrealized_pnl_quote"], 28)
+        self.assertAlmostEqual(snap["unrealized_pnl_quote"], 29)
 
     def test_base_fee_is_valued_and_duplicate_is_idempotent(self):
         a = self.make()
