@@ -342,6 +342,32 @@ class TradingBot:
             self.last_known_balance = portfolio_value
         return snapshot
 
+
+    def reconcile_portfolio(
+        self,
+        tracker: Any,
+        *,
+        force: bool = True,
+        include_orders: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """Refresh Nobitex and reconcile the supplied live SignalTracker."""
+        if self.exchange is None or self.exchange_name != "nobitex":
+            return None
+        if self.portfolio_manager is None:
+            self.portfolio_manager = NobitexPortfolioManager(
+                self.exchange, quote=self.quote_currency
+            )
+        snapshot = self.portfolio_manager.refresh_and_reconcile(
+            tracker,
+            force=force,
+            include_orders=include_orders,
+        )
+        portfolio_value = _safe_float(snapshot.get("portfolio_value_quote"), None)
+        if portfolio_value is not None and portfolio_value >= 0:
+            self.current_balance = portfolio_value
+            self.last_known_balance = portfolio_value
+        return snapshot
+
     def _init_exchange(self) -> None:
         """Initialize the only supported live venue: Nobitex spot IRT."""
         exchange_id = str(getattr(self.config, "exchange", "nobitex") or "nobitex").strip().lower()
