@@ -428,6 +428,7 @@ class TestPrioritization(unittest.TestCase):
                 min_market_cap=100_000,
             )
             self.tracker.confirmation_enabled = False
+            self.tracker.pump_threshold_pct = 0.0
 
     def tearDown(self):
         _close_tracker(self.tracker)
