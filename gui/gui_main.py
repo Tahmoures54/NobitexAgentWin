@@ -970,12 +970,7 @@ class CryptoScannerApp:
         return max(10.0, min(seconds, 300.0))
 
     def _reconcile_portfolio_cycle(self, *, force: bool = False, reason: str = "") -> Optional[Dict[str, Any]]:
-        """Synchronize the real Nobitex wallet with the internal trade ledger.
-
-        The exchange wallet remains the source of truth. This method is
-        intentionally called outside the GUI thread because wallet, ticker,
-        and open-order reads are network operations.
-        """
+        """Synchronize Nobitex wallet and the internal live trade ledger."""
         bot = self.trading_bot
         tracker = self.real_signal_tracker
         if bot is None or str(getattr(bot, "exchange_name", "")).lower() != "nobitex":
@@ -988,28 +983,27 @@ class CryptoScannerApp:
             return self._last_portfolio_snapshot
 
         try:
-            snapshot = bot.refresh_portfolio(force=True, include_orders=True)
+            snapshot = bot.reconcile_portfolio(
+                tracker,
+                force=True,
+                include_orders=True,
+            )
             if not snapshot:
                 self._portfolio_sync_status = "error"
                 logger.warning("[PORTFOLIO] Empty Nobitex portfolio snapshot | reason=%s", reason or "cycle")
                 return None
 
-            # Refuse to treat a partially valued account as a complete risk
-            # picture. The wallet itself is still recorded and displayed.
-            balance_snapshot: Dict[str, float] = {str(snapshot.get("quote_currency", "IRT")).upper(): float(snapshot.get("quote_available", 0.0) or 0.0)}
-            for asset in snapshot.get("assets", []) or []:
-                try:
-                    balance_snapshot[str(asset.get("asset", "")).upper()] = float(asset.get("available", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    continue
-
-            reconcile = tracker.reconcile_open_positions(balance_snapshot=balance_snapshot)
+            reconciliation = snapshot.get("reconciliation") or {}
             self._last_portfolio_snapshot = snapshot
             self._last_portfolio_sync = now
-            self._portfolio_sync_status = "synced" if bool(snapshot.get("valuation_complete", False)) else "partial"
+            self._portfolio_sync_status = (
+                "synced" if bool(snapshot.get("valuation_complete", False)) else "partial"
+            )
 
             logger.info(
-                "[PORTFOLIO] Reconciled | reason=%s | value=%.0f %s | total=%.0f %s | assets=%d | open_orders=%d | valuation=%s | unpriced=%s | ledger_checked=%d kept=%d resized=%d phantom_closed=%d",
+                "[PORTFOLIO] Reconciled | reason=%s | value=%.0f %s | total=%.0f %s | "
+                "assets=%d | open_orders=%d | valuation=%s | unpriced=%s | "
+                "ledger_checked=%d kept=%d resized=%d phantom_closed=%d",
                 reason or "cycle",
                 float(snapshot.get("portfolio_value_quote", 0.0) or 0.0),
                 snapshot.get("quote_currency", "IRT"),
@@ -1019,15 +1013,18 @@ class CryptoScannerApp:
                 int(snapshot.get("open_order_count", 0) or 0),
                 self._portfolio_sync_status,
                 ",".join(snapshot.get("unpriced_assets", []) or []) or "-",
-                int(reconcile.get("checked", 0) or 0),
-                int(reconcile.get("kept", 0) or 0),
-                int(reconcile.get("resized", 0) or 0),
-                int(reconcile.get("closed_phantom", 0) or 0),
+                int(reconciliation.get("checked", 0) or 0),
+                int(reconciliation.get("kept", 0) or 0),
+                int(reconciliation.get("resized", 0) or 0),
+                int(reconciliation.get("closed_phantom", 0) or 0),
             )
             return snapshot
         except Exception as exc:
             self._portfolio_sync_status = "error"
-            logger.error("[PORTFOLIO] Reconciliation failed | reason=%s | %s", reason or "cycle", exc, exc_info=True)
+            logger.error(
+                "[PORTFOLIO] Reconciliation failed | reason=%s | %s",
+                reason or "cycle", exc, exc_info=True,
+            )
             return None
 
     def _live_auto_scan(self):
