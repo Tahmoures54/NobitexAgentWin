@@ -34,6 +34,12 @@ from core.config import APPDATA_DIR as CORE_APPDATA_DIR
 from core.utils import safe_float
 
 try:
+    from trading.online_trade_learner import OnlineTradeLearner, trade_features_from_signal
+except ImportError:
+    OnlineTradeLearner = None
+    trade_features_from_signal = None
+
+try:
     from analysis.risk import assess_risk_details
     RISK_ENGINE_AVAILABLE = True
 except ImportError:
@@ -106,7 +112,7 @@ class SignalTracker:
     ):
         self.db_path = str(Path(APPDATA_DIR) / db_filename) if db_filename else _DB_PATH
         self._lock = threading.RLock()
-        self.learner = learner if learner is not None else DummyLearner()
+        self.learner = learner if learner is not None else (OnlineTradeLearner() if OnlineTradeLearner else DummyLearner())
         self.account_balance = float(account_balance)
         self.initial_balance = float(account_balance)
         self.cash = float(account_balance)
@@ -152,6 +158,10 @@ class SignalTracker:
         self.confirmation_max_minutes = 45
         self.invalidation_pct = 1.5
         self.max_chase_pct = 1.0
+        self.min_confirm_scans = 3
+        self.ml_enabled = True
+        self.ml_min_samples = 30
+        self.ml_min_probability = 0.58
 
         self.executor = executor
         self.mode = "real" if executor is not None else "paper"
@@ -935,6 +945,7 @@ class SignalTracker:
                         signal TEXT NOT NULL, signal_price REAL NOT NULL,
                         created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
                         score REAL DEFAULT 0, row_json TEXT,
+                        confirmation_count INTEGER NOT NULL DEFAULT 1,
                         status TEXT NOT NULL DEFAULT 'pending')""")
                     cur.execute("""CREATE TABLE IF NOT EXISTS bot_state (key TEXT PRIMARY KEY, value TEXT)""")
                     cur.execute("""CREATE TABLE IF NOT EXISTS cooldowns (
@@ -945,6 +956,14 @@ class SignalTracker:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT NOT NULL, price REAL NOT NULL, timestamp TEXT NOT NULL)""")
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_history_symbol_time ON price_history(symbol, timestamp)")
+
+                    cur.execute("PRAGMA table_info(pending_signals)")
+                    pending_existing = {row[1] for row in cur.fetchall()}
+                    if "confirmation_count" not in pending_existing:
+                        try:
+                            cur.execute("ALTER TABLE pending_signals ADD COLUMN confirmation_count INTEGER NOT NULL DEFAULT 1")
+                        except sqlite3.Error as exc:
+                            logger.error("Pending confirmation migration failed: %s", exc)
 
                     cur.execute("PRAGMA table_info(trades)")
                     existing = {row[1] for row in cur.fetchall()}
@@ -2285,40 +2304,50 @@ class SignalTracker:
         if self.confirmation_enabled:
             now_s = self._now_str()
             cur.execute(
-                "SELECT pending_uid, signal_price, created_at, expires_at "
+                "SELECT pending_uid, signal_price, created_at, expires_at, confirmation_count "
                 "FROM pending_signals WHERE asset_key=? AND status='pending' "
                 "ORDER BY id DESC LIMIT 1", (ak,),
             )
             pending = cur.fetchone()
             if pending:
-                uid, signal_price, created_at, expires_at = pending
+                uid, signal_price, created_at, expires_at, confirmation_count = pending
                 exp = self._parse_ts(expires_at)
                 if exp and exp <= self._now():
                     cur.execute("UPDATE pending_signals SET status='expired' WHERE pending_uid=?", (uid,))
                     stats["expired"] += 1
                     return
-                move_pct = ((price - float(signal_price)) / float(signal_price) * 100.0
-                            if float(signal_price) > 0 else 0.0)
-                if move_pct >= self.confirmation_pct and move_pct <= self.max_chase_pct:
-                    cur.execute("UPDATE pending_signals SET status='confirmed' WHERE pending_uid=?", (uid,))
-                elif move_pct < -abs(self.invalidation_pct):
+                signal_move = ((price - float(signal_price)) / float(signal_price) * 100.0
+                               if float(signal_price) > 0 else 0.0)
+                if signal_move < -abs(self.invalidation_pct):
                     cur.execute("UPDATE pending_signals SET status='cancelled' WHERE pending_uid=?", (uid,))
                     stats["cancelled"] += 1
                     return
+                if pump_pct >= self.pump_threshold_pct and signal_move <= self.max_chase_pct:
+                    confirmation_count = int(confirmation_count or 1) + 1
+                    cur.execute(
+                        "UPDATE pending_signals SET confirmation_count=?, signal_price=?, row_json=?, score=? "
+                        "WHERE pending_uid=?",
+                        (confirmation_count, price, json.dumps(row, default=str),
+                         safe_float(row.get("Score", row.get("score"))) or 0.0, uid),
+                    )
                 else:
                     stats["pending"] += 1
                     return
+                if confirmation_count < self.min_confirm_scans:
+                    stats["pending"] += 1
+                    return
+                cur.execute("UPDATE pending_signals SET status='confirmed' WHERE pending_uid=?", (uid,))
             else:
                 uid = uuid.uuid4().hex
                 expires = (self._now() + timedelta(minutes=self.confirmation_max_minutes)).strftime(_TS_FMT)
                 cur.execute(
                     "INSERT OR IGNORE INTO pending_signals "
                     "(pending_uid, asset_key, symbol, side, signal, signal_price, "
-                    "created_at, expires_at, score, row_json, status) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "created_at, expires_at, score, row_json, confirmation_count, status) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (uid, ak, symbol, "long", signal, price, now_s, expires,
                      safe_float(row.get("Score", row.get("score"))) or 0.0,
-                     json.dumps(row, default=str), "pending"),
+                     json.dumps(row, default=str), 1, "pending"),
                 )
                 stats["pending"] += 1
                 return
@@ -2350,6 +2379,18 @@ class SignalTracker:
                     return
             except Exception as e:
                 logger.error("Risk assessment failed for %s: %s", symbol, e, exc_info=True)
+                return
+
+        if self.ml_enabled and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
+            features = trade_features_from_signal(row)
+            probability = self.learner.predict_probability(features)
+            row["MLProbability"] = round(probability * 100.0, 2)
+            if self.learner.samples >= self.ml_min_samples and probability < self.ml_min_probability:
+                self._log_skip(
+                    "%s: ML probability %.1f%% < %.1f%%",
+                    symbol, probability * 100.0, self.ml_min_probability * 100.0,
+                    reason="ml_quality",
+                )
                 return
 
         logger.info("✅ All filters passed for %s | signal=%s | pump=%.2f%% | price=%.8f | vol=%.0f | mcap=%.0f",
@@ -2843,6 +2884,15 @@ class SignalTracker:
                                     else self.cooldown_after_win_min)
                         self._set_cooldown(cur, rec.get("asset_key") or "", rec["symbol"],
                                            cooldown, f"post-exit ({reason})")
+                        if self.ml_enabled and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
+                            try:
+                                entry_features = trade_features_from_signal(
+                                    json.loads(rec.get("entry_indicators") or "{}")
+                                )
+                                if entry_features:
+                                    self.learner.accept(entry_features, net_pnl_pct > 0.0)
+                            except Exception as exc:
+                                logger.debug("Online learner update failed: %s", exc)
                         self._safe_learner_call("record_exit", rec.get("asset_key"), rec["symbol"],
                                                 reason=reason, pnl=net_pnl_pct)
                     if self.mode == "real":
