@@ -1,0 +1,91 @@
+CryptoScanner-6.1.0-Nobitex-IRT-Final:
++---analysis/
+|   +---__init__.py
+|   +---indicators.py
+|   +---indicators_integration.py
+|   +---risk.py
+|   \---signals.py
++---api/
+|   +---__init__.py
+|   +---api_base.py
+|   \---api_tronscan.py
++---core/
+|   +---__init__.py
+|   +---config.py
+|   +---encryption.py
+|   +---irt_money.py
+|   +---user_manager.py
+|   +---user_status.py
+|   \---utils.py
++---data/
+|   +---.gitkeep
+|   +---bot_config.json
+|   \---config.ini
++---gui/
+|   +---dialogs/
+|   +---__init__.py
+|   +---base_dialog.py
+|   +---components.py
+|   +---note_window.py
+|   +---premium_window.py
+|   \---settings_window.py
+|   +---panels/
+|   +---__init__.py
+|   +---paper_trading_panel.py
+|   \---real_trading_panel.py
+|   +---__init__.py
+|   +---gui_helpers.py
+|   +---gui_main.py
+|   +---gui_performance.py
+|   +---splash_screen.py
+|   +---trading_ui_helpers.py
+|   +---ui_factory.py
+|   +---ui_theme.py
+|   \---unified_trading_window.py
++---tests/
+|   +---__init__.py
+|   +---test_bot_config_regime.py
+|   +---test_confidence.py
+|   +---test_execution_mode.py
+|   +---test_gui_auto_regime.py
+|   +---test_indicators.py
+|   +---test_indicators_chikou.py
+|   +---test_integration.py
+|   +---test_live_fill_safety.py
+|   +---test_nobitex_client_errors.py
+|   +---test_nobitex_irt.py
+|   +---test_nobitex_momentum.py
+|   +---test_panel_exports.py
+|   +---test_release_safety.py
+|   +---test_settings_api_test.py
+|   +---test_signal_tracker.py
+|   +---test_signals.py
+|   +---test_tracker_fixes.py
+|   \---test_trader_balance_sync.py
++---trading/
+|   +---__init__.py
+|   +---bot_config.py
+|   +---emergency_halt.py
+|   +---exceptions.py
+|   +---exchange_base.py
+|   +---execution_mode.py
+|   +---nobitex_client.py
+|   +---nobitex_momentum_engine.py
+|   +---regime_detector.py
+|   +---trader.py
+|   \---utils.py
++---.env.example
++---.gitignore
++---app_icon.ico
++---cleanup_project.py
++---eagle.png
++---main.py
++---pytest.ini
++---README.md
++---RELEASE_CHECKLIST.md
++---RELEASE_NOTES.md
++---requirements.txt
++---reset_halt.py
++---signal_tracker.py
++---structure.txt
+\---UserGuide.html

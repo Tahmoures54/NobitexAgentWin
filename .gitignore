@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime state and secrets
+data/*.db
+data/*.enc
+data/*.key
+data/*.hash
+data/trade_history.json
+data/last_data.json
+data/scan_limit.enc
+data/trial_marker.enc
+admin_code.txt
+
+# Credentials / environment
+.env
+.env.*
+*.pem
+*.seed
+
+# Build output
+build/
+dist/
+*.spec
+
+# Logs
+*.log
