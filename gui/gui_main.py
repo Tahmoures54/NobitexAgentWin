@@ -1,9 +1,9 @@
 """
 Main application class for the Advanced Crypto Scanner.
 Drop-in for gui/gui_main.py
-Version: 7.8.5 — Gate live tracker calls with should_run_live_tracker
+Version: 7.9.0 — Add L2 order-flow entry gate
 
-Changes in 7.8.5
+Changes in 7.9.0\n────────────────\nFIX 1 — Candidate BUY entries now receive an interpretable L2 microstructure layer: order-flow imbalance, visible bid/ask depth, spread and microprice bias. A configurable BUY-side gate rejects weak visible demand or wide spreads before execution.\n\nChanges in 7.8.5
 ────────────────
 FIX 1 — `_live_auto_scan` now gates the `real_signal_tracker.process_new_signals`
     call with `should_run_live_tracker(plan, has_live_positions)`.  Previously
@@ -1212,9 +1212,35 @@ class CryptoScannerApp:
                                 depth_checked += 1
                                 hit["asks"] = asks
                                 hit["AskDepthQuote"] = depth
-                                if depth < min_depth:
-                                    depth_rejected += 1
-                                    continue
+
+                                # v7 microstructure layer: use visible L2 pressure
+                                # as an entry confirmation, never as a replacement
+                                # for the existing momentum/regime/risk pipeline.
+                                of = analyze_order_book(
+                                    book,
+                                    levels=int(getattr(cfg, "order_flow_levels", 10) or 10),
+                                )
+                                hit.update({
+                                    "OrderFlowScore": round(float(of["order_flow_score"]), 2),
+                                    "OrderFlowImbalance": round(float(of["order_flow_imbalance"]), 4),
+                                    "OrderFlowSpreadPct": round(float(of["spread_pct"]), 4),
+                                    "BidDepthQuote": round(float(of["bid_depth_quote"]), 2),
+                                    "AskDepthQuoteL2": round(float(of["ask_depth_quote"]), 2),
+                                    "MicropriceBiasPct": round(float(of["microprice_bias_pct"]), 4),
+                                })
+                                if bool(getattr(cfg, "order_flow_enabled", True)):
+                                    allowed, reason = entry_gate(
+                                        of,
+                                        min_score=float(getattr(cfg, "order_flow_min_score", 58.0)),
+                                        max_spread_pct=float(getattr(cfg, "order_flow_max_spread_pct", 1.2)),
+                                        min_depth_quote=float(getattr(cfg, "order_flow_min_bid_depth_quote", 0.0)),
+                                    )
+                                    hit["OrderFlowGate"] = "PASS" if allowed else reason
+                                    if not allowed:
+                                        depth_rejected += 1
+                                        continue
+                                else:
+                                    hit["OrderFlowGate"] = "DISABLED"
                                 enriched.append(hit)
                             candidates = enriched
                         logger.info(
