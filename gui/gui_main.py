@@ -205,6 +205,13 @@ class CryptoScannerApp:
         self._real_scan_lock = threading.Lock()
         self._real_auto_job: Optional[str] = None
 
+        # Portfolio reconciliation is deliberately slower than the market
+        # scan. Order mutations still trigger an immediate reconciliation.
+        self._portfolio_scan_count = 0
+        self._last_portfolio_sync = 0.0
+        self._portfolio_sync_status = "never"
+        self._last_portfolio_snapshot: Optional[Dict[str, Any]] = None
+
         self.enable_advanced_var = tk.BooleanVar(value=False)
         self.enable_risk_var = tk.BooleanVar(value=True)
         self.simple_mode_var = tk.BooleanVar(value=False)
@@ -945,6 +952,84 @@ class CryptoScannerApp:
             return False
         return True
 
+    def _portfolio_reconcile_interval(self) -> int:
+        cfg = self._bot_cfg
+        scans = 3
+        if cfg is not None:
+            scans = int(getattr(cfg, "portfolio_reconcile_every_scans", 3) or 3)
+        return max(1, min(scans, 20))
+
+    def _portfolio_reconcile_min_interval(self) -> float:
+        cfg = self._bot_cfg
+        seconds = 30.0
+        if cfg is not None:
+            try:
+                seconds = float(getattr(cfg, "portfolio_reconcile_min_interval_seconds", 30) or 30)
+            except (TypeError, ValueError):
+                seconds = 30.0
+        return max(10.0, min(seconds, 300.0))
+
+    def _reconcile_portfolio_cycle(self, *, force: bool = False, reason: str = "") -> Optional[Dict[str, Any]]:
+        """Synchronize the real Nobitex wallet with the internal trade ledger.
+
+        The exchange wallet remains the source of truth. This method is
+        intentionally called outside the GUI thread because wallet, ticker,
+        and open-order reads are network operations.
+        """
+        bot = self.trading_bot
+        tracker = self.real_signal_tracker
+        if bot is None or str(getattr(bot, "exchange_name", "")).lower() != "nobitex":
+            return None
+        if tracker is None:
+            return None
+
+        now = time.time()
+        if not force and (now - self._last_portfolio_sync) < self._portfolio_reconcile_min_interval():
+            return self._last_portfolio_snapshot
+
+        try:
+            snapshot = bot.refresh_portfolio(force=True, include_orders=True)
+            if not snapshot:
+                self._portfolio_sync_status = "error"
+                logger.warning("[PORTFOLIO] Empty Nobitex portfolio snapshot | reason=%s", reason or "cycle")
+                return None
+
+            # Refuse to treat a partially valued account as a complete risk
+            # picture. The wallet itself is still recorded and displayed.
+            balance_snapshot: Dict[str, float] = {str(snapshot.get("quote_currency", "IRT")).upper(): float(snapshot.get("quote_available", 0.0) or 0.0)}
+            for asset in snapshot.get("assets", []) or []:
+                try:
+                    balance_snapshot[str(asset.get("asset", "")).upper()] = float(asset.get("available", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+
+            reconcile = tracker.reconcile_open_positions(balance_snapshot=balance_snapshot)
+            self._last_portfolio_snapshot = snapshot
+            self._last_portfolio_sync = now
+            self._portfolio_sync_status = "synced" if bool(snapshot.get("valuation_complete", False)) else "partial"
+
+            logger.info(
+                "[PORTFOLIO] Reconciled | reason=%s | value=%.0f %s | total=%.0f %s | assets=%d | open_orders=%d | valuation=%s | unpriced=%s | ledger_checked=%d kept=%d resized=%d phantom_closed=%d",
+                reason or "cycle",
+                float(snapshot.get("portfolio_value_quote", 0.0) or 0.0),
+                snapshot.get("quote_currency", "IRT"),
+                float(snapshot.get("portfolio_total_value_quote", 0.0) or 0.0),
+                snapshot.get("quote_currency", "IRT"),
+                int(snapshot.get("asset_count", 0) or 0),
+                int(snapshot.get("open_order_count", 0) or 0),
+                self._portfolio_sync_status,
+                ",".join(snapshot.get("unpriced_assets", []) or []) or "-",
+                int(reconcile.get("checked", 0) or 0),
+                int(reconcile.get("kept", 0) or 0),
+                int(reconcile.get("resized", 0) or 0),
+                int(reconcile.get("closed_phantom", 0) or 0),
+            )
+            return snapshot
+        except Exception as exc:
+            self._portfolio_sync_status = "error"
+            logger.error("[PORTFOLIO] Reconciliation failed | reason=%s | %s", reason or "cycle", exc, exc_info=True)
+            return None
+
     def _live_auto_scan(self):
         """Nobitex-only momentum scan with adaptive regime; paper/live exclusive.
 
@@ -958,6 +1043,7 @@ class CryptoScannerApp:
             return
         plan = self.current_cycle_plan()
         tag = plan.get("scan_tag", "[REAL]")
+        self._portfolio_scan_count += 1
         if self.real_signal_tracker is not None:
             self.real_signal_tracker.allow_new_entries = bool(plan.get("open_live"))
         if not plan.get("open_paper") and self.real_signal_tracker is None:
@@ -1006,6 +1092,19 @@ class CryptoScannerApp:
                 k: v for k, v in self._local_history.items() if k in live_syms
             }
             self._local_last_scan = now
+
+            has_managed_live_positions = False
+            if self.real_signal_tracker is not None:
+                try:
+                    has_managed_live_positions = bool(self.real_signal_tracker.get_open_trades())
+                except Exception:
+                    has_managed_live_positions = False
+            if (
+                self.real_signal_tracker is not None
+                and (plan.get("mode") == LIVE or has_managed_live_positions)
+                and self._portfolio_scan_count % self._portfolio_reconcile_interval() == 0
+            ):
+                self._reconcile_portfolio_cycle(reason=f"scan-{self._portfolio_scan_count}")
             logger.info(
                 "%s[UNIVERSE] source=%d accepted=%d rejected_no_price=%d rejected_invalid=%d quote=%s",
                 tag, len(local_rows), len(live_rows), universe_rejected_no_price,
@@ -1163,6 +1262,10 @@ class CryptoScannerApp:
                         result.get("opened"), result.get("closed"),
                         result.get("pending"), result.get("resized"), len(candidates),
                     )
+                    if any(result.get(key) for key in ("opened", "closed", "resized")):
+                        # BUY/fill/stop/trailing/SELL mutations are followed
+                        # by an immediate exchange-vs-ledger reconciliation.
+                        self._reconcile_portfolio_cycle(force=True, reason="order-mutation")
                     if not result.get("opened") and live_rows:
                         if not allow and plan.get("mode") == LIVE:
                             logger.warning(
