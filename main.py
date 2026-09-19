@@ -21,7 +21,6 @@ def setup_logging(debug: bool = False, log_file: str | None = None) -> logging.L
         from core.logger import setup_structured_logging
         return setup_structured_logging(debug=debug, log_file=log_file, json_output=False)
     except Exception:
-        # Fallback for early boot / missing module
         level = logging.DEBUG if debug else logging.INFO
         fmt = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
         date_fmt = "%H:%M:%S"
@@ -144,7 +143,6 @@ def launch_gui(logger: logging.Logger) -> None:
         show_error_and_exit("Application Error", f"{type(exc).__name__}: {exc}")
 
 def main() -> None:
-    # Global exception hook to catch unhandled errors in threads
     def handle_exception(exc_type, exc_value, exc_traceback):
         logging.critical("Unhandled exception:", exc_info=(exc_type, exc_value, exc_traceback))
     sys.excepthook = handle_exception
@@ -167,7 +165,7 @@ def main() -> None:
     logger.info("Working dir: %s", os.getcwd())
     logger.info("=" * 50)
 
-    # Install graceful shutdown handlers
+    # Install graceful shutdown + watchdog
     try:
         from core.shutdown import get_shutdown_manager
         from core.database import Database
@@ -175,9 +173,20 @@ def main() -> None:
         shutdown_mgr = get_shutdown_manager()
         shutdown_mgr.install_handlers()
 
-        # Register critical cleanup hooks (lower priority number = earlier)
         db = Database()
         shutdown_mgr.register("database-checkpoint", db.close, priority=10, timeout=3.0)
+
+        try:
+            from trading.watchdog import get_watchdog
+            wd = get_watchdog()
+            wd.register("main", max_silence_seconds=120.0)
+            wd.heartbeat("main")
+            wd.start()
+            shutdown_mgr.register("watchdog-stop", wd.stop, priority=5, timeout=2.0)
+            logger.info("Health watchdog started")
+        except Exception as wd_exc:
+            logger.warning("Watchdog not started: %s", wd_exc)
+
         logger.debug("Shutdown hooks registered")
     except Exception as exc:
         logger.warning("Could not install full shutdown manager: %s", exc)
