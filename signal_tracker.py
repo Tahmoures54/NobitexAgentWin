@@ -872,6 +872,14 @@ class SignalTracker:
             except (TypeError, ValueError):
                 strategy = None
             strategy = str(strategy or "").upper().strip()
+            strategy = {
+                "AGGRESSIVE": "TREND_FOLLOWING",
+                "TREND": "TREND_FOLLOWING",
+                "BALANCED": "MOMENTUM",
+                "CONSERVATIVE": "MEAN_REVERSION",
+                "SCALPING": "SCALPING",
+                "CRISIS": "DEFENSIVE",
+            }.get(strategy, strategy)
             if strategy not in ("TREND_FOLLOWING", "MOMENTUM", "MEAN_REVERSION", "SCALPING", "DEFENSIVE"):
                 continue
             try:
