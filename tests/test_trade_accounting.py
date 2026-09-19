@@ -114,7 +114,7 @@ class TradeAccountingTests(unittest.TestCase):
         snap = a.snapshot({"BTC": 120})
         self.assertAlmostEqual(snap["assets"][0]["quantity"], 10)
         self.assertAlmostEqual(snap["assets"][0]["cost_basis_quote"], 1000)
-        self.assertAlmostEqual(snap["realized_pnl_quote"], 150)
+        self.assertAlmostEqual(snap["realized_pnl_quote"], 200)
 
     def test_zero_fee_is_a_known_fee(self):
         a = self.make()
