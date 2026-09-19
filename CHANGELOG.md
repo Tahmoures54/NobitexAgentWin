@@ -1,3 +1,12 @@
+## v6.9.0 — Profitability-aware adaptive strategy switching
+
+- Added realized strategy performance statistics from closed trades.
+- Added minimum-sample and hysteresis controls to strategy selection.
+- Added profitability veto for sufficiently sampled negative-expectancy strategies.
+- Wired strategy attribution into live execution rows.
+- Added GUI auto-regime profitability veto and adaptive-pipeline performance input.
+- No profitability guarantee; paper validation remains required before live capital.
+
 # Changelog
 
 ## [6.8.0] — Actual-fill accounting + portfolio reconciliation
