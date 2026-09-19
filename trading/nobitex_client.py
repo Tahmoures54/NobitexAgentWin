@@ -48,10 +48,12 @@ from .exchange_base import ExchangeBase
 from .exceptions import (
     AuthenticationError,
     AuthorizationError,
+    ExchangeClientError,
     NetworkExchangeError,
     RateLimitError,
     ServerExchangeError,
 )
+from .rate_limiter import NobitexRateLimiter
 
 logger = logging.getLogger(__name__)
 
