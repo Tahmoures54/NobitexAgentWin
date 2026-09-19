@@ -58,6 +58,7 @@ from .bot_config import BotConfig, load_config, validate_config
 from .exchange_base import ExchangeBase
 from .idempotency import IdempotencyGuard
 from .portfolio_manager import NobitexPortfolioManager
+from .trade_accounting import TradeAccounting
 
 
 logger = logging.getLogger("TradingBot")
@@ -245,6 +246,7 @@ class TradingBot:
         self.lock = threading.RLock()
         self.idempotency = IdempotencyGuard()
         self.portfolio_manager: Optional[NobitexPortfolioManager] = None
+        self.trade_accounting: Optional[TradeAccounting] = None
 
         self.exchange_name = (
             getattr(self.config, "exchange", "simulator") or "simulator"
@@ -320,6 +322,7 @@ class TradingBot:
             self.portfolio_manager = NobitexPortfolioManager(
                 self.exchange, quote=self.quote_currency
             )
+            self.trade_accounting = TradeAccounting(quote=self.quote_currency)
 
         if auto_start:
             self.start()
@@ -1018,6 +1021,24 @@ class TradingBot:
                 status = str(raw_order.get("state", "") or "").strip().lower()
             status = status or "submitted"
             raw_order.setdefault("client_order_id", client_order_id)
+            if self.trade_accounting is not None:
+                try:
+                    accounting_result = self.trade_accounting.ingest_order(raw_order)
+                    raw_order["accounting"] = accounting_result
+                    if accounting_result.get("status") == "recorded":
+                        logger.info(
+                            "Actual-fill accounting recorded: %s %s qty=%s price=%s fee=%s %s complete=%s",
+                            side.upper(), execution_symbol,
+                            accounting_result.get("quantity"), accounting_result.get("price"),
+                            accounting_result.get("fee"), accounting_result.get("fee_currency"),
+                            accounting_result.get("accounting_complete"),
+                        )
+                except Exception as accounting_exc:
+                    logger.warning("Trade accounting did not block order execution: %s", accounting_exc)
+                    raw_order["accounting"] = {
+                        "status": "error", "accounting_complete": False,
+                        "reason": str(accounting_exc),
+                    }
             self.idempotency.confirm(
                 client_order_id, exchange_order_id=str(raw_order.get("order_id") or "") or None,
                 status=status,
