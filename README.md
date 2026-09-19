@@ -1,4 +1,4 @@
-# CryptoScanner 6.2.0 — Nobitex IRT Edition
+# CryptoScanner 6.7.0 — Nobitex IRT Edition
 
 CryptoScanner is a Windows-friendly spot scanner and trading assistant built specifically for **Nobitex and the IRT market**.
 
@@ -97,3 +97,23 @@ data/bot_config.json
 ## Operational sequence
 
 **Paper → measure expectancy (after fees) → tune → small live → scale only with evidence**
+
+
+## v6.7 Portfolio Reconciliation
+
+The live Nobitex cycle now treats the exchange wallet as the account source of truth.
+
+- Periodic portfolio reconciliation every few scans (configurable).
+- Immediate reconciliation after BUY/close/resize mutations.
+- Available and total wallet values are tracked separately.
+- Non-quote assets are valued from current Nobitex tickers.
+- Open orders are captured with the portfolio snapshot.
+- Internal live positions are reconciled against the same wallet snapshot.
+- External holdings remain visible as exchange assets rather than being invented as bot trades.
+- Missing market prices leave an asset explicitly unpriced; the account is not falsely marked fully valued.
+- A failed portfolio read never becomes a zero-balance signal.
+- The total-wallet snapshot is reused so one reconciliation cycle does not make one wallet request per asset.
+
+The default cadence is every 3 scans with a minimum 30-second interval. A trade mutation forces an immediate reconciliation.
+
+Live execution remains opt-in and must still pass the existing safety gates.
