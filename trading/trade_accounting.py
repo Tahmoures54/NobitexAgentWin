@@ -196,7 +196,7 @@ class TradeAccounting:
             old_fees = float(pos["fees_quote"]) if pos else 0.0
 
             if side == "buy":
-                new_qty = old_qty + qty
+                new_qty = old_qty + delta_qty
                 new_cost = old_cost + gross + fee_value_quote
                 realized_delta = 0.0
             else:
@@ -204,7 +204,7 @@ class TradeAccounting:
                 avg_cost = old_cost / old_qty if old_qty > 0 else 0.0
                 cost_removed = avg_cost * sell_qty
                 realized_delta = (gross - fee_value_quote - cost_removed) if sell_qty > 0 else 0.0
-                new_qty = max(0.0, old_qty - qty)
+                new_qty = max(0.0, old_qty - sell_qty)
                 new_cost = max(0.0, old_cost - cost_removed)
                 if old_qty <= 0:
                     fee_known = False
@@ -225,7 +225,7 @@ class TradeAccounting:
         return {
             "status": "recorded",
             "asset": asset,
-            "quantity": qty,
+            "quantity": delta_qty,
             "price": price,
             "fee": fee,
             "fee_currency": fee_currency,
