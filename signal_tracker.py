@@ -725,6 +725,10 @@ class SignalTracker:
         self.use_risk_filter = _bool("use_risk_filter", self.use_risk_filter)
         self.halt_on_max_drawdown = _bool("halt_on_max_drawdown", self.halt_on_max_drawdown)
         self.confirmation_enabled = _bool("confirmation_enabled", self.confirmation_enabled)
+        self.min_confirm_scans = _num("min_confirm_scans", self.min_confirm_scans, int)
+        self.ml_enabled = _bool("ml_enabled", self.ml_enabled)
+        self.ml_min_samples = _num("ml_min_samples", self.ml_min_samples, int)
+        self.ml_min_probability = _num("ml_min_probability", self.ml_min_probability)
         self.ignore_signal_filters = _bool("ignore_signal_filters", self.ignore_signal_filters)
         self.quiet_skips = _bool("quiet_skips", self.quiet_skips)
 
@@ -763,6 +767,18 @@ class SignalTracker:
             self.max_new_entries_per_cycle = 1
         if self.confirmation_max_minutes < 1:
             self.confirmation_max_minutes = 1
+        if self.min_confirm_scans < 1:
+            self.min_confirm_scans = 1
+        if self.ml_min_samples < 1:
+            self.ml_min_samples = 1
+        if not 0.0 <= self.ml_min_probability <= 1.0:
+            self.ml_min_probability = 0.58
+        if self.confirmation_pct < 0:
+            self.confirmation_pct = 0.0
+        if self.max_chase_pct < 0:
+            self.max_chase_pct = 0.0
+        if self.invalidation_pct < 0:
+            self.invalidation_pct = 0.0
         for attr in ("cooldown_after_loss_min", "cooldown_after_win_min",
                      "cooldown_after_chase_min", "cooldown_after_invalidation_min"):
             if getattr(self, attr) < 0:
@@ -946,6 +962,7 @@ class SignalTracker:
                         created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
                         score REAL DEFAULT 0, row_json TEXT,
                         confirmation_count INTEGER NOT NULL DEFAULT 1,
+                        last_confirmation_price REAL,
                         status TEXT NOT NULL DEFAULT 'pending')""")
                     cur.execute("""CREATE TABLE IF NOT EXISTS bot_state (key TEXT PRIMARY KEY, value TEXT)""")
                     cur.execute("""CREATE TABLE IF NOT EXISTS cooldowns (
@@ -964,6 +981,11 @@ class SignalTracker:
                             cur.execute("ALTER TABLE pending_signals ADD COLUMN confirmation_count INTEGER NOT NULL DEFAULT 1")
                         except sqlite3.Error as exc:
                             logger.error("Pending confirmation migration failed: %s", exc)
+                    if "last_confirmation_price" not in pending_existing:
+                        try:
+                            cur.execute("ALTER TABLE pending_signals ADD COLUMN last_confirmation_price REAL")
+                        except sqlite3.Error as exc:
+                            logger.error("Pending last-price migration failed: %s", exc)
 
                     cur.execute("PRAGMA table_info(trades)")
                     existing = {row[1] for row in cur.fetchall()}
@@ -2294,9 +2316,10 @@ class SignalTracker:
         pump_pct = self._extract_pump_percentage(row, signal)
         if pump_pct is None:
             pump_pct = safe_float(row.get("1h Change (%)")) or 0.0
-        if (not is_eagle and any(token in signal_l for token in _PUMP_GATED_TOKENS)
-                and pump_pct < self.pump_threshold_pct):
-            self._log_skip("%s: movement %.2f%% < threshold %.2f%%",
+        # Every normal BUY entry is pump-gated. Eagle is the only intentional
+        # exception because its dedicated detector applies stronger conditions.
+        if not is_eagle and pump_pct < self.pump_threshold_pct:
+            self._log_skip("%s: pump %.2f%% < threshold %.2f%%",
                            symbol, pump_pct, self.pump_threshold_pct,
                            reason="below_pump_threshold")
             return
@@ -2304,28 +2327,35 @@ class SignalTracker:
         if self.confirmation_enabled:
             now_s = self._now_str()
             cur.execute(
-                "SELECT pending_uid, signal_price, created_at, expires_at, confirmation_count "
+                "SELECT pending_uid, signal_price, created_at, expires_at, "
+                "confirmation_count, last_confirmation_price "
                 "FROM pending_signals WHERE asset_key=? AND status='pending' "
                 "ORDER BY id DESC LIMIT 1", (ak,),
             )
             pending = cur.fetchone()
             if pending:
-                uid, signal_price, created_at, expires_at, confirmation_count = pending
+                uid, signal_price, created_at, expires_at, confirmation_count, last_confirmation_price = pending
                 exp = self._parse_ts(expires_at)
                 if exp and exp <= self._now():
                     cur.execute("UPDATE pending_signals SET status='expired' WHERE pending_uid=?", (uid,))
                     stats["expired"] += 1
                     return
-                signal_move = ((price - float(signal_price)) / float(signal_price) * 100.0
-                               if float(signal_price) > 0 else 0.0)
-                if signal_move < -abs(self.invalidation_pct):
+                initial_price = float(signal_price or 0.0)
+                previous_price = float(last_confirmation_price or signal_price or 0.0)
+                total_move = ((price - initial_price) / initial_price * 100.0
+                              if initial_price > 0 else 0.0)
+                scan_move = ((price - previous_price) / previous_price * 100.0
+                             if previous_price > 0 else 0.0)
+                if total_move < -abs(self.invalidation_pct):
                     cur.execute("UPDATE pending_signals SET status='cancelled' WHERE pending_uid=?", (uid,))
                     stats["cancelled"] += 1
                     return
-                if pump_pct >= self.pump_threshold_pct and signal_move <= self.max_chase_pct:
+                if (pump_pct >= self.pump_threshold_pct
+                        and scan_move >= self.confirmation_pct
+                        and scan_move <= self.max_chase_pct):
                     confirmation_count = int(confirmation_count or 1) + 1
                     cur.execute(
-                        "UPDATE pending_signals SET confirmation_count=?, signal_price=?, row_json=?, score=? "
+                        "UPDATE pending_signals SET confirmation_count=?, last_confirmation_price=?, row_json=?, score=? "
                         "WHERE pending_uid=?",
                         (confirmation_count, price, json.dumps(row, default=str),
                          safe_float(row.get("Score", row.get("score"))) or 0.0, uid),
@@ -2343,11 +2373,12 @@ class SignalTracker:
                 cur.execute(
                     "INSERT OR IGNORE INTO pending_signals "
                     "(pending_uid, asset_key, symbol, side, signal, signal_price, "
-                    "created_at, expires_at, score, row_json, confirmation_count, status) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "created_at, expires_at, score, row_json, confirmation_count, "
+                    "last_confirmation_price, status) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (uid, ak, symbol, "long", signal, price, now_s, expires,
                      safe_float(row.get("Score", row.get("score"))) or 0.0,
-                     json.dumps(row, default=str), 1, "pending"),
+                     json.dumps(row, default=str), 1, price, "pending"),
                 )
                 stats["pending"] += 1
                 return
