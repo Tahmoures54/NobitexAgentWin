@@ -1,4 +1,4 @@
-# CryptoScanner 6.7.0 — Nobitex IRT Edition
+# CryptoScanner 6.8.0 — Nobitex IRT Edition
 
 CryptoScanner is a Windows-friendly spot scanner and trading assistant built specifically for **Nobitex and the IRT market**.
 
