@@ -1,66 +1,113 @@
-"""Read-only scoring utilities for Nobitex market intelligence.
+"""Transparent, read-only Market Intelligence scoring for Nobitex.
 
-This module is deliberately independent from the trading/execution path.
-It converts the already-fetched market-intelligence snapshot into a
-transparent 0-100 diagnostic score. The score is informational only.
+The score is diagnostic only. It is never used to place, size, or approve
+orders. Execution thresholds and gates remain unchanged in the trading path.
 """
-
 from __future__ import annotations
 
-import re
-from typing import Any, Dict, Optional, Tuple
+import math
+from typing import Any, Dict, Optional
 
 
-def _num(value: Any) -> Optional[float]:
+def _num(value: Any, default: Optional[float] = None) -> Optional[float]:
     try:
         if value is None or value == "":
-            return None
+            return default
         result = float(value)
-        if result != result:
-            return None
-        return result
+        return result if math.isfinite(result) else default
     except (TypeError, ValueError):
-        return None
+        return default
 
 
 def _clip(value: float, low: float = 0.0, high: float = 100.0) -> float:
     return max(low, min(high, float(value)))
 
 
-def _scale(value: float, low: float, high: float) -> float:
-    if high <= low:
+def _positive_scale(value: float, neutral: float, strong: float) -> float:
+    if value <= neutral:
         return 0.0
-    return _clip((value - low) / (high - low) * 100.0)
+    if strong <= neutral:
+        return 100.0
+    return _clip((value - neutral) / (strong - neutral) * 100.0)
 
 
-def _parse_pump_pct(row: Optional[Dict[str, Any]]) -> Optional[float]:
-    if not row:
-        return None
-    direct = _num(row.get("pump_pct"))
-    if direct is not None:
-        return direct
-    signal = str(row.get("Signal", "") or "")
-    match = re.search(r"([-+]?\d+(?:\.\d+)?)\s*%?\s*Pump", signal, re.I)
-    return float(match.group(1)) if match else None
+def calculate_early_mover_score(
+    row: Dict[str, Any],
+    scan_change_pct: float = 0.0,
+) -> Dict[str, Any]:
+    """Calculate a pre-pump score from cheap data already in the market row.
 
+    This intentionally does not require the 3% pump threshold. A market can
+    therefore become an early/pre-pump candidate while remaining below the
+    existing execution threshold.
+    """
+    move = max(0.0, _num(row.get("ObservedLocalMove (%)"), scan_change_pct) or 0.0)
+    one_hour = _num(row.get("1h Change (%)"), 0.0) or 0.0
+    day_change = _num(row.get("24h Change (%)"), 0.0) or 0.0
+    volume = max(0.0, _num(row.get("Volume"), 0.0) or 0.0)
 
-def _component_pump(row: Dict[str, Any]) -> Optional[float]:
-    pump = _parse_pump_pct(row)
-    if pump is None:
-        return None
-    # 3% is the existing candidate threshold.  10%+ receives full weight.
-    return _scale(pump, 3.0, 10.0)
+    bid = _num(row.get("Bid"), 0.0) or 0.0
+    ask = _num(row.get("Ask"), 0.0) or 0.0
+    spread = ((ask - bid) / bid * 100.0) if bid > 0 and ask >= bid else 99.0
+
+    price = _num(row.get("Price"), 0.0) or 0.0
+    high = _num(row.get("Day High"), 0.0) or 0.0
+    low = _num(row.get("Day Low"), 0.0) or 0.0
+    day_position = (
+        (price - low) / (high - low) * 100.0
+        if high > low > 0 and price > 0 else 50.0
+    )
+
+    # Explicit weights sum to 100.
+    momentum = _positive_scale(move, 0.15, 3.0) * 0.35
+    hourly = _positive_scale(one_hour, 0.25, 3.0) * 0.20
+    range_position = _clip((day_position - 35.0) / 65.0 * 100.0) * 0.15
+    liquidity = _clip(
+        math.log10(max(volume, 1.0) / 1_000_000.0 + 1.0) / 4.0 * 100.0
+    ) * 0.10
+    spread_score = _clip((1.5 - spread) / 1.5 * 100.0) * 0.10
+    daily = _positive_scale(day_change, 0.0, 5.0) * 0.10
+
+    score = _clip(momentum + hourly + range_position + liquidity + spread_score + daily)
+
+    if score >= 75:
+        state = "Strong Early"
+    elif score >= 60:
+        state = "Early Mover"
+    elif score >= 45:
+        state = "Pre-Pump"
+    else:
+        state = "Normal"
+
+    reasons = []
+    if move >= 0.15:
+        reasons.append(f"local {move:+.2f}%")
+    if one_hour >= 0.5:
+        reasons.append(f"1h +{one_hour:.2f}%")
+    if day_position >= 70:
+        reasons.append(f"day-high proximity {day_position:.0f}%")
+    if spread <= 0.6:
+        reasons.append(f"spread {spread:.2f}%")
+    if volume >= 100_000_000:
+        reasons.append("liquid")
+    if day_change < 0:
+        reasons.append(f"24h {day_change:+.2f}%")
+    if not reasons:
+        reasons.append("no strong early evidence")
+
+    return {
+        "score": round(score, 1),
+        "state": state,
+        "reasons": reasons,
+        "is_candidate": score >= 45.0,
+        "move_pct": round(move, 4),
+        "spread_pct": round(spread, 4),
+        "day_position_pct": round(day_position, 2),
+    }
 
 
 def _component_momentum(snapshot: Dict[str, Any]) -> Optional[float]:
-    values = [_num(snapshot.get(k)) for k in (
-        "momentum_1m_pct", "momentum_5m_pct", "momentum_15m_pct"
-    )]
-    values = [v for v in values if v is not None]
-    if not values:
-        return None
-    # Shorter timeframes receive slightly more weight.
-    weighted = []
+    values = []
     for key, weight in (
         ("momentum_1m_pct", 0.25),
         ("momentum_5m_pct", 0.35),
@@ -68,114 +115,103 @@ def _component_momentum(snapshot: Dict[str, Any]) -> Optional[float]:
     ):
         value = _num(snapshot.get(key))
         if value is not None:
-            weighted.append((_clip(50.0 + value * 12.5), weight))
-    if not weighted:
+            values.append((_clip(50.0 + value * 12.5), weight))
+    if not values:
         return None
-    return sum(score * weight for score, weight in weighted) / sum(w for _, w in weighted)
+    return sum(score * weight for score, weight in values) / sum(w for _, w in values)
 
 
 def _component_pressure(snapshot: Dict[str, Any]) -> Optional[float]:
-    value = _num(snapshot.get("buy_pressure_pct"))
-    if value is None:
-        return None
-    return _clip(value)
+    return _num(snapshot.get("buy_pressure_pct"))
 
 
 def _component_imbalance(snapshot: Dict[str, Any]) -> Optional[float]:
     value = _num(snapshot.get("orderbook_imbalance_pct"))
-    if value is None:
-        return None
-    return _clip(50.0 + value * 0.5)
+    return None if value is None else _clip(50.0 + value * 0.5)
 
 
 def _component_volume(snapshot: Dict[str, Any]) -> Optional[float]:
     value = _num(snapshot.get("volume_ratio"))
     if value is None:
         return None
-    # 1x = neutral, 2x = strong confirmation, 3x+ = full score.
-    return _scale(value, 0.5, 3.0)
+    return _clip((value - 0.5) / 2.5 * 100.0)
 
 
 def _component_ema(snapshot: Dict[str, Any]) -> Optional[float]:
     trend = str(snapshot.get("ema_trend", "") or "").lower()
-    if trend == "bullish":
+    if "bull" in trend or "up" in trend:
         return 100.0
-    if trend == "bearish":
+    if "bear" in trend or "down" in trend:
         return 0.0
-    if trend:
-        return 50.0
-    return None
+    return 50.0 if trend else None
 
 
 def _component_macd(snapshot: Dict[str, Any]) -> Optional[float]:
     hist = _num(snapshot.get("macd_hist"))
     if hist is None:
         return None
-    macd = _num(snapshot.get("macd"))
-    signal = _num(snapshot.get("macd_signal"))
-    magnitude = abs(macd or 0.0) + abs(signal or 0.0)
-    if magnitude <= 0:
+    macd = abs(_num(snapshot.get("macd"), 0.0) or 0.0)
+    signal = abs(_num(snapshot.get("macd_signal"), 0.0) or 0.0)
+    scale = macd + signal
+    if scale <= 0:
         return 50.0
-    # Relative histogram direction is more useful than absolute price scale.
-    return _clip(50.0 + (hist / magnitude) * 100.0)
+    return _clip(50.0 + hist / scale * 100.0)
 
 
 def _component_rsi(snapshot: Dict[str, Any]) -> Optional[float]:
     rsi = _num(snapshot.get("rsi"))
     if rsi is None:
         return None
-    # Favor bullish momentum without rewarding extreme overbought readings.
-    if 50.0 <= rsi <= 65.0:
+    if 50 <= rsi <= 65:
         return 100.0
-    if 65.0 < rsi <= 75.0:
-        return _scale(75.0 - rsi, 0.0, 10.0)
-    if 40.0 <= rsi < 50.0:
-        return _scale(rsi, 40.0, 50.0)
-    if rsi < 40.0:
-        return _scale(rsi, 20.0, 40.0)
-    return 20.0
-
-
-def _component_adx(snapshot: Dict[str, Any]) -> Optional[float]:
-    adx = _num(snapshot.get("adx"))
-    if adx is None:
-        return None
-    return _scale(adx, 15.0, 40.0)
+    if 65 < rsi <= 75:
+        return 100.0 - (rsi - 65.0) * 6.0
+    if 40 <= rsi < 50:
+        return (rsi - 40.0) * 5.0
+    return 20.0 if rsi < 40 else 20.0
 
 
 _COMPONENTS = (
-    ("Pump", 20.0, _component_pump),
-    ("Momentum", 20.0, _component_momentum),
-    ("Buy Pressure", 15.0, _component_pressure),
-    ("Order Book", 10.0, _component_imbalance),
+    ("Momentum", 25.0, _component_momentum),
+    ("Buy Pressure", 20.0, _component_pressure),
+    ("Order Book", 15.0, _component_imbalance),
     ("Volume", 10.0, _component_volume),
     ("EMA", 10.0, _component_ema),
-    ("MACD", 5.0, _component_macd),
-    ("RSI", 5.0, _component_rsi),
-    ("ADX", 5.0, _component_adx),
+    ("MACD", 8.0, _component_macd),
+    ("RSI", 7.0, _component_rsi),
 )
 
 
 def calculate_signal_intelligence_score(
     row: Optional[Dict[str, Any]],
     snapshot: Optional[Dict[str, Any]],
+    *,
+    early: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Return a transparent, availability-aware 0-100 diagnostic score.
+    """Return a transparent 0-100 score using available deep evidence.
 
-    The score is normalized over available components, so missing candle
-    or flow data does not silently become a zero. It never triggers orders.
+    The early score is included at 20% when supplied. Missing deep components
+    are excluded from the denominator rather than silently becoming zero.
     """
     row = row or {}
     snapshot = snapshot or {}
+    early = early or calculate_early_mover_score(row)
 
     contributions = []
     factors: Dict[str, float] = {}
     available_weight = 0.0
     weighted_total = 0.0
 
+    early_score = _num(early.get("score"))
+    if early_score is not None:
+        factors["Early Mover"] = round(early_score, 2)
+        contributions.append(("Early Mover", early_score, 20.0))
+        available_weight += 20.0
+        weighted_total += early_score * 20.0
+
     for name, weight, calculator in _COMPONENTS:
         try:
-            component = calculator(row) if name == "Pump" else calculator(snapshot)
+            component = calculator(snapshot)
         except Exception:
             component = None
         if component is None:
@@ -188,33 +224,50 @@ def calculate_signal_intelligence_score(
 
     if available_weight <= 0:
         return {
-            "score": None,
-            "coverage_pct": 0.0,
-            "grade": "Insufficient data",
-            "factors": {},
-            "available_weight": 0.0,
+            "score": None, "coverage_pct": 0.0, "grade": "Insufficient data",
+            "factors": {}, "reasons": ["no intelligence data"],
         }
 
     score = weighted_total / available_weight
     coverage = available_weight / 100.0 * 100.0
-    if coverage < 50.0:
+    if coverage < 45.0:
         grade = "Insufficient data"
     elif score >= 75.0:
-        grade = "Strong alignment"
+        grade = "Strong"
     elif score >= 60.0:
-        grade = "Positive alignment"
+        grade = "Constructive"
     elif score >= 45.0:
-        grade = "Mixed alignment"
+        grade = "Mixed"
     else:
-        grade = "Weak alignment"
+        grade = "Weak"
+
+    reasons = []
+    buy = _num(snapshot.get("buy_pressure_pct"))
+    imbalance = _num(snapshot.get("orderbook_imbalance_pct"))
+    m5 = _num(snapshot.get("momentum_5m_pct"))
+    m15 = _num(snapshot.get("momentum_15m_pct"))
+    vr = _num(snapshot.get("volume_ratio"))
+
+    if buy is not None:
+        reasons.append(f"buy pressure {buy:.0f}%")
+    if imbalance is not None and abs(imbalance) >= 5:
+        reasons.append(f"OB imbalance {imbalance:+.1f}%")
+    if m5 is not None and abs(m5) >= 0.25:
+        reasons.append(f"5m {m5:+.2f}%")
+    if m15 is not None and abs(m15) >= 0.5:
+        reasons.append(f"15m {m15:+.2f}%")
+    if vr is not None and vr >= 1.5:
+        reasons.append(f"volume {vr:.1f}x")
+    reasons.extend(list(early.get("reasons") or [])[:2])
 
     return {
         "score": round(score, 1),
         "coverage_pct": round(coverage, 1),
         "grade": grade,
         "factors": factors,
+        "reasons": reasons[:7] or ["mixed deep evidence"],
         "available_weight": round(available_weight, 1),
     }
 
 
-__all__ = ["calculate_signal_intelligence_score"]
+__all__ = ["calculate_early_mover_score", "calculate_signal_intelligence_score"]
