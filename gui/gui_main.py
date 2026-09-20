@@ -1278,6 +1278,59 @@ class CryptoScannerApp:
                                         continue
                                 else:
                                     hit["OrderFlowGate"] = "DISABLED"
+
+                                # Public trade-flow and short OHLC context are
+                                # deliberately fetched only after the expensive
+                                # momentum/L2 gates have passed. This keeps the
+                                # 10-second scanner well below Nobitex API limits
+                                # while giving confirmed movers real execution
+                                # evidence.
+                                try:
+                                    pressure = self.trading_bot.get_buy_sell_pressure(
+                                        symbol, limit=50
+                                    )
+                                    ohlc = self.trading_bot.get_short_ohlc(
+                                        symbol, interval="5m", limit=6
+                                    )
+                                    hit.update({
+                                        "RecentTrades": pressure.get("trades_count", 0),
+                                        "BuyVolumeRecent": float(pressure.get("buy_volume", 0.0) or 0.0),
+                                        "SellVolumeRecent": float(pressure.get("sell_volume", 0.0) or 0.0),
+                                        "BuyPressurePct": float(pressure.get("buy_pressure_pct", 0.0) or 0.0),
+                                        "SellPressurePct": float(pressure.get("sell_pressure_pct", 0.0) or 0.0),
+                                        "BuySellRatio": pressure.get("buy_sell_ratio"),
+                                        "LastTradeType": pressure.get("last_trade_type"),
+                                        "LastTradePrice": pressure.get("last_trade_price"),
+                                        "OHLC5mChangePct": ohlc.get("change_pct"),
+                                        "OHLC5mHigh": ohlc.get("high", 0.0),
+                                        "OHLC5mLow": ohlc.get("low", 0.0),
+                                        "OHLC5mVolume": ohlc.get("volume", 0.0),
+                                    })
+                                    logger.info(
+                                        "%s[FLOW] %s | trades=%d buy=%.1f%% "
+                                        "buyVol=%.0f sellVol=%.0f ratio=%s | "
+                                        "5m=%.2f%% high=%.8g low=%.8g",
+                                        tag, symbol,
+                                        int(pressure.get("trades_count", 0) or 0),
+                                        float(pressure.get("buy_pressure_pct", 0.0) or 0.0),
+                                        float(pressure.get("buy_volume", 0.0) or 0.0),
+                                        float(pressure.get("sell_volume", 0.0) or 0.0),
+                                        pressure.get("buy_sell_ratio"),
+                                        float(ohlc.get("change_pct") or 0.0),
+                                        float(ohlc.get("high") or 0.0),
+                                        float(ohlc.get("low") or 0.0),
+                                    )
+                                except Exception as exc:
+                                    # Fail open for diagnostics: trade-flow data
+                                    # enriches the signal but does not replace the
+                                    # existing momentum/L2 safety gates.
+                                    logger.warning(
+                                        "%s[FLOW] %s context unavailable: %s",
+                                        tag, symbol, exc,
+                                    )
+                                    hit.setdefault("BuyPressurePct", None)
+                                    hit.setdefault("OHLC5mChangePct", None)
+
                                 enriched.append(hit)
                             candidates = enriched
                         logger.info(
