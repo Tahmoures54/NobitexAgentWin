@@ -1117,60 +1117,55 @@ def main() -> int:
     print_result(rnd, "CONTROL — random entries, identical exit rules")
     report["random_entry_control"] = rnd.stats()
 
-    # 5. parameter sweep (entry threshold, trail distance, stop)
-    # 6. how would this scale to the real Nobitex universe (~150 IRT markets)?
-    #    The live scan iterates every IRT market, not just the tested basket.
-    def _scaling(res: SimResult, n_markets: int = 150) -> Dict[str, Any]:
-        st = res.stats()
-        n_sym = max(1, len(res.symbols))
-        if not st["trades"] or res.days <= 0:
-            return {"note": "no trades in this arm"}
-        trades_per_day_per_symbol = st["trades"] / res.days / n_sym
-        avg_notional_frac = statistics.fmean(
-            [t.notional / res.start_equity for t in res.trades]) if res.trades else 0.0
-        exp_frac = (st["expectancy_pct"] or 0.0) / 100.0 * avg_notional_frac
-        implied = trades_per_day_per_symbol * n_markets
-        return {
-            "markets_assumed": n_markets,
-            "tested_symbols": n_sym,
-            "trades_per_day_per_symbol": round(trades_per_day_per_symbol, 4),
-            "signals_per_day_per_symbol": round(res.signals_seen / max(res.days, 1e-9) / n_sym, 3),
-            "implied_trades_per_day": round(implied, 2),
-            "avg_notional_pct_of_equity": round(avg_notional_frac * 100.0, 2),
-            "expectancy_pct_of_notional": st["expectancy_pct"],
-            "implied_daily_equity_drag_pct": round(implied * exp_frac * 100.0, 3),
-            "implied_monthly_equity_drag_pct": round(implied * exp_frac * 100.0 * 30, 2),
-        }
-
-    report["universe_scaling"] = {
-        "file_defaults": _scaling(base if base.label == "file-defaults" else
-                                  Engine(data, p, label="file-defaults", bars_kind=args.bars).run()),
-        "balanced_preset": _scaling(preset),
-    }
-    print("\nuniverse scaling (extrapolated to the full Nobitex IRT market list):")
-    print(json.dumps(report["universe_scaling"], indent=2, default=str))
-
+    # 5. parameter sweep: is ANY geometry/lookback combination profitable?
     if args.sweep:
+        if args.bars == "10s":
+            lookbacks = (6, 12, 30)          # 1, 2, 5 minutes
+            thresholds = (0.3, 0.5, 0.8, 1.2)
+            trails = (2.0, 99.0)
+            stops = (2.0, 3.0)
+        else:
+            lookbacks = (p.lookback_scans,)
+            thresholds = (0.5, 0.8, 1.5)
+            trails = (1.2, 2.0)
+            stops = (2.0, 3.0)
         grid = []
-        for thr in (0.5, 1.0, 1.5, 2.0, 3.0):
-            for trail in (0.6, 1.2, 2.0, 99.0):   # 99 == trailing disabled (pure 3% stop)
-                for stop in (2.0, 3.0, 5.0):
-                    r = Engine(data, preset_params.scaled(min_observed_move_pct=thr,
-                                                          trailing_distance_pct=trail,
-                                                          stop_loss_pct=stop),
-                               label=f"T{thr}/trail{trail}/stop{stop}", bars_kind=args.bars).run()
-                    st = r.stats()
-                    grid.append({"threshold": thr, "trail": trail, "stop": stop,
-                                 "trades": st["trades"], "win_rate": st["win_rate_pct"],
-                                 "expectancy_pct": st["expectancy_pct"],
-                                 "total_return_pct": st["total_return_pct"],
-                                 "max_dd": st["max_drawdown_pct"],
-                                 "profit_factor": st["profit_factor"]})
-                    print(f"  [sweep] thr={thr:<4} trail={trail:<5} stop={stop:<4} "
-                          f"trades={st['trades']:<4} win={fmt(st['win_rate_pct']):<6} "
-                          f"exp={fmt(st['expectancy_pct']):<9} ret={fmt(st['total_return_pct']):<9} "
-                          f"dd={fmt(st['max_drawdown_pct'])}")
-        report["sweep"] = grid
+        best = None
+        for lb in lookbacks:
+            for thr in thresholds:
+                for trail in trails:
+                    for stop in stops:
+                        r = Engine(data, preset_params.scaled(
+                            lookback_scans=lb, min_observed_move_pct=thr,
+                            trailing_distance_pct=trail, stop_loss_pct=stop),
+                            label=f"L{lb}/T{thr}/trail{trail}/stop{stop}",
+                            bars_kind=args.bars).run()
+                        st = r.stats()
+                        row = {"lookback_scans": lb, "threshold": thr, "trail": trail,
+                               "stop": stop, "trades": st["trades"],
+                               "win_rate": st["win_rate_pct"],
+                               "expectancy_pct": st["expectancy_pct"],
+                               "total_return_pct": st["total_return_pct"],
+                               "max_dd": st["max_drawdown_pct"],
+                               "profit_factor": st["profit_factor"]}
+                        grid.append(row)
+                        if st["expectancy_pct"] is not None and (
+                                best is None or st["expectancy_pct"] > best["expectancy_pct"]):
+                            best = row
+                        print(f"  [sweep] L={lb:<3} T={thr:<4} trail={trail:<5} stop={stop:<4} "
+                              f"trades={st['trades']:<4} win={fmt(st['win_rate_pct']):<6} "
+                              f"exp={fmt(st['expectancy_pct']):<9} ret={fmt(st['total_return_pct']):<9} "
+                              f"dd={fmt(st['max_drawdown_pct'])}")
+        positives = [g for g in grid if (g["expectancy_pct"] or 0) > 0 and (g["trades"] or 0) >= 5]
+        report["sweep"] = {
+            "grid_size": len(grid),
+            "best": best,
+            "positive_cells": len(positives),
+            "positive_examples": sorted(positives, key=lambda g: -g["expectancy_pct"])[:5],
+            "table": grid,
+        }
+        print(f"  [sweep] {len(positives)}/{len(grid)} cells with >0 expectancy and >=5 trades; "
+              f"best={best}")
 
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:

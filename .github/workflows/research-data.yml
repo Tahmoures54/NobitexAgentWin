@@ -68,7 +68,7 @@ jobs:
       - name: Backtest — 1m bars, broad basket + forward-return study
         run: |
           python tools/research/profitability_backtest.py \
-            --data-dir research_data --bars 1m \
+            --data-dir research_data --bars 1m --sweep \
             --json-out research_data/results_1m.json 2>&1 | tee research_data/log_1m.txt | tail -400
 
       - name: Publish small result files to the branch
