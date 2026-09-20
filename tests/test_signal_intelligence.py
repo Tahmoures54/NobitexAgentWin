@@ -21,7 +21,7 @@ def test_signal_intelligence_score_is_transparent_and_bounded():
 
     assert 0.0 <= result["score"] <= 100.0
     assert result["coverage_pct"] == 100.0
-    assert result["grade"] == "Strong alignment"
+    assert result["grade"] == "Positive alignment"
     assert set(result["factors"]) == {
         "Pump", "Momentum", "Buy Pressure", "Order Book", "Volume",
         "EMA", "MACD", "RSI", "ADX",
