@@ -17,7 +17,7 @@ on:
         default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO'
       tick_days:
         description: 'days of 1s archives (10s bars)'
-        default: '2'
+        default: '7'
 
 permissions:
   contents: write
@@ -39,7 +39,7 @@ jobs:
           mkdir -p research_data
           python -V
           python -u tools/research/fetch_market_data.py \
-            --out research_data --days 120 --tick-days "${{ github.event.inputs.tick_days || 2 }}" \
+            --out research_data --days 120 --tick-days "${{ github.event.inputs.tick_days || 7 }}" \
             --symbols "${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO' }}" \
             --tick-symbols "BTC,ETH,SOL,XRP" \
             2>&1 | tee research_data/log_fetch.txt | tail -60 \

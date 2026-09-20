@@ -532,6 +532,11 @@ def main() -> int:
         "balanced_preset_zero_cost": BALANCED_PRESET.scaled(
             fee_pct_per_side=0.0, half_spread_pct=0.0, slippage_pct_per_side=0.0),
         "balanced_preset_paper_stops": BALANCED_PRESET.scaled(intrabar_stops=False),
+        # no trailing stop at all: exits are the hard stop (or the end of the
+        # window).  This isolates "does the signal have drift?" from "does the
+        # exit geometry pay for the round trip?".
+        "file_defaults_no_trailing": base.scaled(trail_activation_pct=1e9),
+        "balanced_preset_no_trailing": BALANCED_PRESET.scaled(trail_activation_pct=1e9),
     }
     for name, params in arms.items():
         res = Engine(data, params, label=name).run()
@@ -565,31 +570,43 @@ def main() -> int:
             print(f"   {key}: {val}")
 
     if args.sweep:
+        # The trailing stop only does something when activation > distance: with
+        # activation == distance the armed level is floored at the entry price, so
+        # every trailed exit lands on ~-cost, and with activation >> distance the
+        # trail never arms at all.  Sweep the pairs the live presets actually use.
+        trail_pairs = ((1.5, 1.2), (3.0, 2.0), (1.5, 0.6), (3.0, 1.0))
         if args.sweep_cells == "fast":
-            thresholds, lookbacks, trails, stops = (0.5, 1.5), (2, 4), (0.6, 1.2), (2.0, 3.0)
+            thresholds, lookbacks, stops = (0.8, 1.5), (4, 6), (3.0,)
         else:
-            thresholds, lookbacks, trails, stops = (0.5, 1.0, 1.5, 2.5), (2, 4, 8), (0.6, 1.2, 2.0, 3.0), (2.0, 3.0)
+            thresholds, lookbacks, stops = (0.5, 0.8, 1.5, 2.5), (2, 4, 6), (2.0, 3.0)
         grid = []
         for threshold in thresholds:
             for lookback in lookbacks:
-                for trail in trails:
+                for act, dist in trail_pairs:
                     for stop in stops:
                         params = base.scaled(min_observed_move_pct=threshold,
                                              lookback_scans=lookback,
-                                             trail_distance_pct=trail, stop_loss_pct=stop)
+                                             trail_activation_pct=act,
+                                             trail_distance_pct=dist,
+                                             stop_loss_pct=stop)
                         res = Engine(data, params,
-                                     label=f"T{threshold}/L{lookback}/trail{trail}/stop{stop}").run()
+                                     label=f"T{threshold}/L{lookback}/{act}-{dist}/stop{stop}").run()
                         grid.append({"threshold": threshold, "lookback": lookback,
-                                     "trail": trail, "stop": stop,
+                                     "trail_activation": act, "trail_distance": dist,
+                                     "stop": stop,
                                      "trades": res["trades"], "win_rate": res["win_rate_pct"],
                                      "expectancy_pct": res["expectancy_pct"],
                                      "return_pct": res["return_pct"],
-                                     "max_dd_pct": res["max_drawdown_pct"]})
+                                     "max_dd_pct": res["max_drawdown_pct"],
+                                     "halted": res["halted"],
+                                     "avg_hold_min": res["avg_hold_min"],
+                                     "exits": res["exits"]})
         report["sweep"] = grid
         best = sorted(grid, key=lambda r: -(r["expectancy_pct"] or -999))[:5]
         print("\n== sweep best by expectancy:")
         for row in best:
-            print(f"   {row}")
+            print("   " + ", ".join(f"{k}={v}" for k, v in row.items()
+                                    if k not in ("exits", "halted")))
         positive = [r for r in grid if (r["trades"] or 0) >= 20
                     and (r["expectancy_pct"] or 0) > 0]
         report["sweep_positive_cells"] = positive
