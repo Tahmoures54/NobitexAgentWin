@@ -534,6 +534,66 @@ class NobitexClient(ExchangeBase):
             "timestamp": int(time.time() * 1000),
         }
 
+    def get_recent_trades(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Return recent public trades for a Nobitex market."""
+        market_symbol = self.resolve_symbol(symbol)
+        data = self._request(
+            "GET", "/v2/trades/" + market_symbol,
+            query_params={"limit": max(1, min(int(limit or 50), 500))},
+            signed=False,
+        )
+        rows = data.get("trades", []) if isinstance(data, dict) else []
+        result = []
+        for trade in rows:
+            if not isinstance(trade, dict):
+                continue
+            result.append({
+                "id": trade.get("id"),
+                "time": trade.get("time") or trade.get("timestamp"),
+                "price": _safe_float(trade.get("price")),
+                "volume": _safe_float(trade.get("volume")),
+                "type": str(trade.get("type") or "").lower(),
+            })
+        return result
+
+    def get_buy_sell_pressure(self, symbol: str, limit: int = 50) -> Dict[str, Any]:
+        """Summarize recent public trades into buy/sell pressure metrics."""
+        trades = self.get_recent_trades(symbol, limit=limit)
+        buy_volume = sum(t["volume"] for t in trades if t.get("type") == "buy")
+        sell_volume = sum(t["volume"] for t in trades if t.get("type") == "sell")
+        total = buy_volume + sell_volume
+        buy_ratio = (buy_volume / total * 100.0) if total > 0 else 0.0
+        return {
+            "trades_count": len(trades),
+            "buy_volume": buy_volume,
+            "sell_volume": sell_volume,
+            "total_volume": total,
+            "buy_pressure_pct": buy_ratio,
+            "sell_pressure_pct": 100.0 - buy_ratio if total > 0 else 0.0,
+            "buy_sell_ratio": (buy_volume / sell_volume) if sell_volume > 0 else None,
+            "last_trade_type": trades[0].get("type") if trades else None,
+            "last_trade_price": trades[0].get("price") if trades else None,
+            "trades": trades,
+        }
+
+    def get_short_ohlc(self, symbol: str, interval: str = "5m", limit: int = 6) -> Dict[str, Any]:
+        """Return compact OHLC momentum context for recent candles."""
+        candles = self.get_klines(symbol, interval=interval, limit=limit)
+        if not candles:
+            return {"interval": interval, "candles": [], "change_pct": None,
+                    "high": 0.0, "low": 0.0, "volume": 0.0}
+        first = candles[0]
+        last = candles[-1]
+        change = _pct_change(last["close"], first["open"]) if first["open"] > 0 else None
+        return {
+            "interval": interval,
+            "candles": candles,
+            "change_pct": change,
+            "high": max(c["high"] for c in candles),
+            "low": min(c["low"] for c in candles),
+            "volume": sum(c["volume"] for c in candles),
+        }
+
     def get_klines(self, symbol: str, interval: str = "1h", limit: int = 100) -> List[Dict]:
         market_symbol = self.resolve_symbol(symbol)
         resolution_map = {
