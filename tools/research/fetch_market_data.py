@@ -69,6 +69,21 @@ def _read_gz(path: str):
                 yield row
 
 
+def _norm_ts(value) -> int:
+    """Seconds, milliseconds and microseconds all appear in public archives."""
+    ts = int(float(value))
+    while ts > 100_000_000_000:      # > year 5138 -> ms/us
+        ts //= 1000
+    return ts
+
+
+def _fmt_ts(ts: int) -> str:
+    try:
+        return f"{datetime.fromtimestamp(int(ts), timezone.utc):%Y-%m-%d}"
+    except (ValueError, OSError, OverflowError):
+        return f"ts={ts}"
+
+
 # ── Binance Vision archives ──────────────────────────────────────────────────
 
 def _vision_zip(kind: str, symbol: str, interval: str, period: str, daily: bool) -> list:
@@ -91,9 +106,7 @@ def _vision_zip(kind: str, symbol: str, interval: str, period: str, daily: bool)
                 # klines: open_time, o, h, l, c, v, close_time, ...
                 rows.append((int(float(row[0])), row[1], row[2], row[3], row[4], row[5]))
     for r in rows:
-        if r[0] > 10_000_000_000:      # milliseconds in the archives
-            r = (r[0] // 1000, *r[1:])
-        yield r
+        yield (_norm_ts(r[0]), *r[1:])
 
 
 def fetch_vision_1m(symbol: str, days: int) -> list:
@@ -150,9 +163,7 @@ def fetch_vision_10s(symbol: str, days: int) -> list:
     cur_bucket = None
     o = h = l = c = v = 0.0
     for ts, *ohlcv in sec_rows:
-        t = int(ts)
-        if t > 10_000_000_000:
-            t //= 1000
+        t = _norm_ts(ts)
         bucket = t - (t % 10)
         op, hi, lo, cl, vol = (float(x) for x in ohlcv[:5])
         if bucket != cur_bucket:
@@ -191,7 +202,7 @@ def fetch_binance_rest_1m(symbol: str, days: int) -> list:
         if not data:
             raise RuntimeError("binance REST unavailable")
         for k in data:
-            out.append((int(k[0]) // 1000, k[1], k[2], k[3], k[4], k[5]))
+            out.append((_norm_ts(k[0]), k[1], k[2], k[3], k[4], k[5]))
         cur = int(data[-1][0]) + 60_000
     out.sort(key=lambda r: r[0])
     return out
@@ -208,7 +219,7 @@ def fetch_bybit_rest_1m(symbol: str, days: int) -> list:
         if not rows:
             break
         for k in rows:
-            out.append((int(k[0]) // 1000, k[1], k[2], k[3], k[4], k[5]))
+            out.append((_norm_ts(k[0]), k[1], k[2], k[3], k[4], k[5]))
         cur = int(rows[0][0]) + 60_000
     out.sort(key=lambda r: r[0])
     return out
@@ -283,6 +294,7 @@ def main() -> int:
                     "days": args.days, "tick_days": args.tick_days, "symbols": {}}
 
     for sym in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
+      try:
         spec = symbol_spec(sym)
         entry: dict = {"sources": {}}
         rows: list = []
@@ -308,8 +320,7 @@ def main() -> int:
             entry.update(rows_1m=n, first_bar=rows[0][0], last_bar=rows[-1][0],
                          path=os.path.basename(path))
             print(f"[{sym}] 1m bars={n} via {entry.get('source')} "
-                  f"{datetime.fromtimestamp(rows[0][0], timezone.utc):%Y-%m-%d} -> "
-                  f"{datetime.fromtimestamp(rows[-1][0], timezone.utc):%Y-%m-%d}", flush=True)
+                  f"{_fmt_ts(rows[0][0])} -> {_fmt_ts(rows[-1][0])}", flush=True)
         else:
             entry["rows_1m"] = 0
             print(f"[{sym}] 1m data unavailable", flush=True)
@@ -328,8 +339,14 @@ def main() -> int:
                 entry.update(rows_10s=n, first_10s=bars[0][0], last_10s=bars[-1][0])
                 print(f"[{sym}] 10s bars={n}", flush=True)
         report["symbols"][sym] = entry
+      except Exception as exc:  # noqa: BLE001 - one symbol must not kill the run
+        print(f"[{sym}] FAILED: {exc}", flush=True)
+        report["symbols"][sym] = {"error": str(exc)[:200]}
 
-    report["nobitex"] = probe_nobitex()
+    try:
+        report["nobitex"] = probe_nobitex()
+    except Exception as exc:  # noqa: BLE001
+        report["nobitex"] = {"reachable": False, "error": str(exc)[:200]}
     print(f"[nobitex] reachable={report['nobitex'].get('reachable')}", flush=True)
 
     with open(os.path.join(args.out, "fetch_report.json"), "w") as fh:

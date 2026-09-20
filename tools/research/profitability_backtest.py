@@ -91,13 +91,21 @@ CONSERVATIVE_PRESET = Params(
 
 # ── data ─────────────────────────────────────────────────────────────────────
 
+def _norm_ts(value) -> int:
+    """Public archives mix second, millisecond and microsecond epochs."""
+    ts = int(float(value))
+    while ts > 100_000_000_000:
+        ts //= 1000
+    return ts
+
+
 class Bars:
     __slots__ = ("symbol", "t", "o", "h", "l", "c", "v")
 
     def __init__(self, symbol: str, rows: List[List[float]]):
         rows = sorted(rows, key=lambda r: float(r[0]))
         self.symbol = symbol
-        self.t = [int(float(r[0])) for r in rows]
+        self.t = [_norm_ts(r[0]) for r in rows]
         self.o = [float(r[1]) for r in rows]
         self.h = [float(r[2]) for r in rows]
         self.l = [float(r[3]) for r in rows]
@@ -174,6 +182,12 @@ class Engine:
         # merge all scan timestamps of all symbols
         index = {s: {t: i for i, t in enumerate(b.t)} for s, b in self.data.items()}
         timeline = sorted({t for b in self.data.values() for t in b.t})
+        step_s = {s: max(b.step(), 1e-9) for s, b in self.data.items()}
+        for s, st in step_s.items():
+            if not (0.5 <= st <= 3600.0):
+                print(f"  !! WARNING {s}: bar step {st}s looks wrong - timestamps "
+                      f"may be mis-scaled", flush=True)
+        window_24h = {s: max(2, int(round(86400.0 / st))) for s, st in step_s.items()}
 
         def btc_dump_blocked(ts: int) -> bool:
             if not p.btc_dump_guard or "BTC" not in self.data:
@@ -186,8 +200,8 @@ class Engine:
                 move = (b.c[i] - b.c[i - 1]) / b.c[i - 1] * 100.0
                 if move <= -p.btc_dump_pct:
                     return True
-            look = 240 if b.step() <= 30 else 4        # 4 minutes
-            j = max(0, i - max(1, int(round(look / max(b.step(), 1e-9)))))
+            st = step_s.get("BTC", 60.0)
+            j = max(0, i - max(1, int(round(240.0 / st))))   # 4 minutes of bars
             if b.c[j] > 0:
                 move = (b.c[i] - b.c[j]) / b.c[j] * 100.0
                 if move <= -p.btc_dump_pct:
@@ -265,7 +279,7 @@ class Engine:
                 if len(hist) > 600:
                     del hist[0]
 
-                win = int(round(86400 / max(bars.step(), 1e-9)))
+                win = window_24h[symbol]
                 prices_24h[symbol].append(price)
                 if len(prices_24h[symbol]) > win + 2:
                     del prices_24h[symbol][0]
@@ -445,7 +459,7 @@ def forward_study(data: Dict[str, Bars], p: Params, horizons_min=(1, 5, 15, 30, 
             row = {"symbol": sym, "ts": b.t[i], "move_pct": round(move, 3)}
             ok = True
             for h in horizons_min:
-                j = i + int(round(h * 60 / step))
+                j = i + max(1, int(round(h * 60.0 / step)))
                 if j >= len(b):
                     ok = False
                     break
@@ -523,11 +537,12 @@ def main() -> int:
     ref = report["file_defaults"]
     days = max(ref["window_days"], 1e-9)
     scans = int(round(days * 86400 / base.scan_seconds)) * max(1, len(data))
-    rate = min(0.5, (ref["trades"] or 1) / max(scans, 1) * 3.0)
+    rate = min(0.5, max(1e-7, (ref["trades"] or 1) / max(scans, 1) * 3.0))
     ctrl = Engine(data, base.scaled(random_entries=True, random_rate=rate),
                   label="random_entries").run()
     report["random_entries"] = ctrl
-    print(f"\n== random_entries (rate={rate:.6f}): trades={ctrl['trades']} "
+    print(f"\n== random_entries (rate={rate:.3e}, target~{ref['trades']}): "
+          f"trades={ctrl['trades']} "
           f"win={ctrl['win_rate_pct']} expectancy={ctrl['expectancy_pct']}% "
           f"return={ctrl['return_pct']}%", flush=True)
 
