@@ -66,13 +66,39 @@ class NobitexMomentumEngine:
                 continue
 
     def stats_line(self):
-        s=self.last_stats or {}
-        return ("local={local} qualified={passed} volume={volume} spread={spread} "
-                "depth={depth} trend={no_trend} falling={falling} chase={chase} "
-                "confirm={confirm} btc_dump={btc_dump} eagle={btc_dump_exc} "
-                "best_move={best_obs}").format(**{k:s.get(k,0) for k in
-                ("local","passed","volume","spread","depth","no_trend","falling",
-                 "chase","confirm","btc_dump","btc_dump_exc","best_obs")})
+        """Return a human-readable per-cycle gate breakdown for the operator."""
+        s = self.last_stats or {}
+        return (
+            "markets={local} passed={passed} | "
+            "blocked(volume<{min_vol:.0f})={volume} "
+            "spread>{max_spread:.2f}%={spread} "
+            "move<{min_move:.2f}%={no_trend} "
+            "fall>{max_fall:.2f}%={falling} "
+            "chase>{max_chase:.2f}%={chase} "
+            "confirm={confirm} "
+            "btc_dump={btc_dump} eagle={btc_dump_exc} "
+            "depth={depth} missing_depth={missing_depth} "
+            "best_move={best_obs:.2f}%"
+        ).format(
+            local=s.get("local", 0),
+            passed=s.get("passed", 0),
+            min_vol=self.min_volume_irt,
+            volume=s.get("volume", 0),
+            max_spread=self.max_spread_pct,
+            spread=s.get("spread", 0),
+            min_move=self.min_observed_move_pct,
+            no_trend=s.get("no_trend", 0),
+            max_fall=self.max_local_fall_pct,
+            falling=s.get("falling", 0),
+            max_chase=self.max_chase_pct,
+            chase=s.get("chase", 0),
+            confirm=s.get("confirm", 0),
+            btc_dump=s.get("btc_dump", 0),
+            btc_dump_exc=s.get("btc_dump_exc", 0),
+            depth=s.get("depth", 0),
+            missing_depth=s.get("missing_depth", 0),
+            best_obs=float(s.get("best_obs", 0.0) or 0.0),
+        )
 
     @staticmethod
     def _depth(levels,n=5):
