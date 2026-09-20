@@ -73,18 +73,7 @@ jobs:
           git config user.email "research-bot@users.noreply.github.com"
           mkdir -p research_results
           cp research_data/results_*.json research_data/log_*.txt research_data/fetch_report.json research_results/ 2>/dev/null || true
-          rm -f research_results/signal_events_*.csv.gz
-          python - <<'PYEOF' 2>/dev/null || true
-import gzip, os, shutil
-for name in os.listdir("research_data"):
-    if name.startswith("signal_events") and name.endswith(".csv.gz"):
-        src = os.path.join("research_data", name)
-        out = os.path.join("research_results", name.replace(".csv.gz", ".sample.csv.gz"))
-        with gzip.open(src, "rt") as fh:
-            head = [next(fh) for _ in range(4000)]
-        with gzip.open(out, "wt") as fh:
-            fh.writelines(head)
-PYEOF
+          python tools/research/make_sample.py || true
           du -sh research_results || true
           git add -f research_results
           git commit -m "chore(research): profitability study results [skip ci]" || echo "nothing to commit"
