@@ -593,6 +593,21 @@ class CryptoScannerApp:
                 known_settings[field_name] = value
             else:
                 unknown_fields.append(field_name)
+
+        # Only the keys the user opted into may be rewritten.  Applying a whole
+        # preset used to silently replace risk_per_trade_pct / exposure limits
+        # with much more aggressive values (see PROFITABILITY_ANALYSIS.md §5).
+        if not bool(getattr(cfg, "regime_auto_apply_all", False)):
+            controlled = getattr(cfg, "regime_controlled_keys", None)
+            if not isinstance(controlled, (list, tuple, set)) or not controlled:
+                controlled = self._REGIME_CONTROLLED_KEYS_DEFAULT
+            controlled = {str(k).strip() for k in controlled if k}
+            kept = sorted(k for k in known_settings if k not in controlled)
+            if kept:
+                logger.info(
+                    "[REGIME] Strategy '%s': applying %s; keeping user values for %s",
+                    strategy_key, sorted(controlled), kept)
+            known_settings = {k: v for k, v in known_settings.items() if k in controlled}
         if unknown_fields:
             logger.warning(
                 "[REGIME] Strategy '%s' contains %d field(s) not defined on "

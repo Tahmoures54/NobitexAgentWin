@@ -153,6 +153,15 @@ class SignalTracker:
         self.invalidation_pct = 1.5
         self.max_chase_pct = 1.0
 
+        # ── profitability guards (see PROFITABILITY_ANALYSIS.md) ──
+        self.cost_guard_enabled = False      # opt-in: refuse entries the exit maths cannot pay for
+        self.min_edge_multiple = 0.0         # required move / round-trip cost (0 = off)
+        self.paper_half_spread_pct = 0.0     # paper fills cross half the spread when set
+        self.max_hold_minutes = 0            # 0 = no time stop
+        self.expectancy_guard_enabled = False
+        self.expectancy_guard_trades = 30
+        self.expectancy_guard_min_expectancy_pct = 0.0
+
         self.executor = executor
         self.mode = "real" if executor is not None else "paper"
         self.quote_currency = "IRT"
@@ -709,6 +718,12 @@ class SignalTracker:
         self.min_quality = _num("min_quality", self.min_quality)
         self.take_profit_percent = _num("take_profit_percent", self.take_profit_percent)
         self.trading_fee_pct = _num("trading_fee_pct", self.trading_fee_pct)
+        self.min_edge_multiple = _num("min_edge_multiple", self.min_edge_multiple)
+        self.paper_half_spread_pct = _num("paper_half_spread_pct", self.paper_half_spread_pct)
+        self.max_hold_minutes = _num("max_hold_minutes", self.max_hold_minutes, int)
+        self.expectancy_guard_trades = _num("expectancy_guard_trades", self.expectancy_guard_trades, int)
+        self.expectancy_guard_min_expectancy_pct = _num(
+            "expectancy_guard_min_expectancy_pct", self.expectancy_guard_min_expectancy_pct)
 
         self.auto_trading_enabled = _bool("enable_auto_trading", self.auto_trading_enabled)
         self.trailing_stop_enabled = _bool("trailing_stop_enabled", self.trailing_stop_enabled)
@@ -717,6 +732,8 @@ class SignalTracker:
         self.confirmation_enabled = _bool("confirmation_enabled", self.confirmation_enabled)
         self.ignore_signal_filters = _bool("ignore_signal_filters", self.ignore_signal_filters)
         self.quiet_skips = _bool("quiet_skips", self.quiet_skips)
+        self.cost_guard_enabled = _bool("cost_guard_enabled", self.cost_guard_enabled)
+        self.expectancy_guard_enabled = _bool("expectancy_guard_enabled", self.expectancy_guard_enabled)
 
         if isinstance(cfg.get("blocked_risk_levels"), list):
             self.blocked_risk_levels = [str(lvl) for lvl in cfg["blocked_risk_levels"]]
@@ -757,6 +774,14 @@ class SignalTracker:
                      "cooldown_after_chase_min", "cooldown_after_invalidation_min"):
             if getattr(self, attr) < 0:
                 setattr(self, attr, 0)
+        if self.min_edge_multiple < 0:
+            self.min_edge_multiple = 0.0
+        if self.paper_half_spread_pct < 0 or self.paper_half_spread_pct > 5:
+            self.paper_half_spread_pct = 0.0
+        if self.max_hold_minutes < 0:
+            self.max_hold_minutes = 0
+        if self.expectancy_guard_trades < 5:
+            self.expectancy_guard_trades = 5
 
     # ══════════════════════════════════════════════════════════════
     # HELPERS
@@ -809,8 +834,79 @@ class SignalTracker:
                 signal_lookup[str(ak)] = str(signal)
         return price_lookup, signal_lookup
 
+    def paper_half_spread(self) -> float:
+        """Half-spread applied to simulated (paper) fills; 0 in real mode."""
+        if str(getattr(self, "mode", "paper")) == "real":
+            return 0.0
+        return float(getattr(self, "paper_half_spread_pct", 0.0) or 0.0)
+
+    def round_trip_cost_pct(self, row: Optional[dict] = None) -> float:
+        """Fee + spread + slippage paid to open *and* close one position."""
+        spread = 0.0
+        if isinstance(row, dict):
+            ask = safe_float(row.get("Ask") or row.get("ask"))
+            bid = safe_float(row.get("Bid") or row.get("bid"))
+            if ask and bid and ask > 0 and bid > 0 and ask >= bid:
+                spread = (ask - bid) / bid * 100.0
+            else:
+                for key in ("Spread (%)", "spread_pct", "Spread"):
+                    val = safe_float(row.get(key))
+                    if val:
+                        spread = float(val)
+                        break
+        if spread <= 0:
+            # No order-book snapshot on this row: assume the spread the paper
+            # engine actually charges (2 x half-spread).  Falling back to
+            # max_nobitex_spread_pct - a *cap*, not a typical value - would
+            # block every entry on this alone.
+            spread = 2.0 * float(self.paper_half_spread() or 0.0)
+        if spread <= 0:
+            spread = max(0.0, float(getattr(self, "max_nobitex_spread_pct", 0.0) or 0.0))
+        return 2.0 * float(self.trading_fee_pct) + spread
+
+    def cost_guard_reason(self, row: Optional[dict], move_pct: float) -> str:
+        """Empty string = allowed.  Otherwise why the entry is not worth its cost."""
+        if not self.cost_guard_enabled:
+            return ""
+        cost = self.round_trip_cost_pct(row)
+        if cost <= 0:
+            return ""
+        gap = max(0.0, float(self.trailing_activation_pct) - float(self.trailing_distance_pct))
+        if gap < cost:
+            return (f"trailing gap {gap:.2f}% < round-trip cost {cost:.2f}% "
+                    f"(every trailing exit would be net negative)")
+        multiple = float(getattr(self, "min_edge_multiple", 0.0) or 0.0)
+        if multiple > 0 and float(move_pct or 0.0) < multiple * cost:
+            return (f"move {float(move_pct or 0.0):.2f}% < {multiple:.1f}x "
+                    f"round-trip cost {cost:.2f}%")
+        return ""
+
+    def _check_expectancy_guard(self, cur) -> None:
+        """Stop opening trades once the realised expectancy is clearly negative."""
+        if not self.expectancy_guard_enabled or not self.allow_new_entries:
+            return
+        n = max(5, int(self.expectancy_guard_trades))
+        try:
+            cur.execute(
+                "SELECT pnl_pct_net FROM trades WHERE status='closed' "
+                "AND pnl_pct_net IS NOT NULL ORDER BY id DESC LIMIT ?", (n,))
+            vals = [float(r[0]) for r in cur.fetchall() if r[0] is not None]
+        except (sqlite3.Error, TypeError, ValueError):
+            return
+        if len(vals) < n:
+            return
+        mean = sum(vals) / len(vals)
+        if mean < float(self.expectancy_guard_min_expectancy_pct):
+            self.allow_new_entries = False
+            self.halt_reason = f"expectancy guard: {mean:.3f}% over last {len(vals)} trades"
+            logger.error(
+                "EXPECTANCY GUARD: average net PnL %.3f%% over the last %d trades is "
+                "below %.3f%%; new entries disabled (monitor-only).",
+                mean, len(vals), self.expectancy_guard_min_expectancy_pct)
+
     def _get_risk_settings(self) -> Dict[str, Any]:
         return {
+            "half_spread_pct": self.paper_half_spread(),
             "stop_loss_pct": self.stop_loss_pct,
             "trailing_stop_enabled": self.trailing_stop_enabled,
             "trailing_distance_pct": self.trailing_distance_pct,
@@ -1284,9 +1380,18 @@ class SignalTracker:
         res["new_sl"] = stop_level
         entry_fee = size * entry * (fee_pct / 100.0)
 
+        half_spread = float(params.get("half_spread_pct", 0.0) or 0.0)
+
+        def _paper_fill(level: float) -> float:
+            """Paper mode sold into the bid / bought at the ask."""
+            if half_spread <= 0 or level <= 0:
+                return level
+            return level * (1.0 - sign * half_spread / 100.0)
+
         if take_profit > 0:
             tp_price = entry * (1.0 + sign * take_profit / 100.0)
             if (sign == 1.0 and cur_price >= tp_price) or (sign == -1.0 and cur_price <= tp_price):
+                tp_price = _paper_fill(tp_price)
                 net_p = SignalTracker._compute_net_pnl_pct(side, entry, tp_price, fee_pct)
                 exit_fee = size * tp_price * (fee_pct / 100.0)
                 gross_pnl_amount = sign * (tp_price - entry) * size
@@ -1301,12 +1406,13 @@ class SignalTracker:
         hit_stop = (cur_price <= stop_level) if sign == 1.0 else (cur_price >= stop_level)
         if hit_stop:
             reason = "Stop Loss" if stop_level == initial_stop else "Trailing Stop"
-            net_p = SignalTracker._compute_net_pnl_pct(side, entry, stop_level, fee_pct)
-            exit_fee = size * stop_level * (fee_pct / 100.0)
-            gross_pnl_amount = sign * (stop_level - entry) * size
+            fill_level = _paper_fill(stop_level)
+            net_p = SignalTracker._compute_net_pnl_pct(side, entry, fill_level, fee_pct)
+            exit_fee = size * fill_level * (fee_pct / 100.0)
+            gross_pnl_amount = sign * (fill_level - entry) * size
             net_pnl_amount = gross_pnl_amount - entry_fee - exit_fee
             res.update(
-                should_close=True, exit_price=stop_level, exit_reason=reason,
+                should_close=True, exit_price=fill_level, exit_reason=reason,
                 pnl_pct=round(net_p, 6), pnl_pct_net=round(net_p, 6),
                 pnl_amount=round(net_pnl_amount, 8), exit_fee=round(exit_fee, 8),
             )
@@ -1724,6 +1830,36 @@ class SignalTracker:
                 stop=rec["current_stop_loss"], extreme=rec["extreme_price"],
                 params=params, size=size,
             )
+            # the trades table already carries a per-trade max_hold_minutes
+            # column (always NULL until something writes it) - honour it, else
+            # fall back to the tracker-wide setting.
+            hold_limit = int(rec.get("max_hold_minutes")
+                             or getattr(self, "max_hold_minutes", 0) or 0)
+            if not ev["should_close"] and hold_limit > 0:
+                opened = self._parse_ts(rec.get("entry_time"))
+                if opened is not None and (self._now() - opened).total_seconds() >= (
+                        hold_limit * 60):
+                    exit_price = cur_price
+                    half_spread = float(params.get("half_spread_pct", 0.0) or 0.0)
+                    if half_spread > 0:
+                        exit_price = exit_price * (1.0 - half_spread / 100.0)
+                    fee_pct = float(params.get("trading_fee_pct", 0.1) or 0.1)
+                    net_p = self._compute_net_pnl_pct(rec["side"], entry, exit_price, fee_pct)
+                    entry_fee = size * entry * fee_pct / 100.0
+                    exit_fee = size * exit_price * fee_pct / 100.0
+                    gross_amount = (exit_price - entry) * size
+                    if str(rec["side"]).lower() == "short":
+                        gross_amount = -gross_amount
+                    ev.update({
+                        "should_close": True, "exit_price": exit_price,
+                        "exit_reason": "Time Stop",
+                        "pnl_pct": round(net_p, 6), "pnl_pct_net": round(net_p, 6),
+                        "pnl_amount": round(gross_amount - entry_fee - exit_fee, 8),
+                        "fees": entry_fee, "exit_fee": round(exit_fee, 8),
+                    })
+                    logger.info("Time stop hit for %s (held %.1f min)",
+                                ak, (self._now() - opened).total_seconds() / 60.0)
+
             if ev["should_close"]:
                 if self.mode == "real" and self.executor:
                     ops.append(self._execute_real_close(rec, ev, base_risk, size, entry))
@@ -2075,6 +2211,18 @@ class SignalTracker:
             notional = executed_price * pos_size
             entry_fee = notional * fee_pct / 100.0
             self._refresh_cash_from_executor()
+        elif self.mode != "real":
+            # Simulated fills must pay the spread too, otherwise paper results
+            # are optimistically biased by ~0.5-1.5% per round trip.
+            half_spread = self.paper_half_spread()
+            if half_spread > 0:
+                entry_price = entry_price * (1.0 + half_spread / 100.0)
+                initial_sl_price = entry_price * (1 - sl_pct / 100.0)
+                notional = entry_price * pos_size
+                entry_fee = notional * fee_pct / 100.0
+                logger.info(
+                    "Paper fill for %s prices in half-spread %.3f%% (entry=%.8f)",
+                    symbol, half_spread, entry_price)
 
         cur.execute(
             "INSERT OR IGNORE INTO trades (trade_uid, asset_key, symbol, entry_time, entry_price, "
@@ -2282,6 +2430,12 @@ class SignalTracker:
                            reason="below_pump_threshold")
             return
 
+        if self.cost_guard_enabled:
+            guard = self.cost_guard_reason(row, pump_pct)
+            if guard:
+                self._log_skip("%s: cost guard — %s", symbol, guard, reason="cost_guard")
+                return
+
         if self.confirmation_enabled:
             now_s = self._now_str()
             cur.execute(
@@ -2404,6 +2558,7 @@ class SignalTracker:
                     cur = conn.cursor()
                     self._refresh_equity(cur, price_lookup)
                     self._check_drawdown(cur)
+                    self._check_expectancy_guard(cur)
 
                     if self.mode == "real" and self.executor:
                         open_rows = self._fetch_open_rows(cur)
