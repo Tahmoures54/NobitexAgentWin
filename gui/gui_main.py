@@ -1915,12 +1915,32 @@ class CryptoScannerApp:
 
             def finish() -> None:
                 self.market_intelligence.update(snapshots)
+                # Publish deep intelligence back into the main 235-market grid.
+                # This remains display-only; no execution gate reads these fields.
+                for symbol, snapshot in snapshots.items():
+                    try:
+                        mask = self.data_df["Symbol"].astype(str).str.upper() == symbol
+                        if not mask.any():
+                            continue
+                        score = snapshot.get("signal_intelligence_score")
+                        grade = snapshot.get("signal_intelligence_grade")
+                        reasons = snapshot.get("signal_intelligence_reasons") or []
+                        if score is not None:
+                            self.data_df.loc[mask, "MI Score"] = float(score)
+                        self.data_df.loc[mask, "MI State"] = str(grade or "--")
+                        self.data_df.loc[mask, "MI Reason"] = (
+                            " • ".join(str(x) for x in reasons[:3])
+                            if isinstance(reasons, list) else str(reasons)
+                        )
+                    except Exception as exc:
+                        logger.debug("[NOBITEX] Could not publish MI score for %s: %s", symbol, exc)
                 self._market_intelligence_running = False
+                self.apply_filter()
                 if candidates:
                     self._show_market_intelligence(candidates[0])
                 if snapshots:
                     logger.info(
-                        "[NOBITEX] Market Intelligence updated for %d pump candidate(s).",
+                        "[NOBITEX] Market Intelligence updated for %d early/pump candidate(s).",
                         len(snapshots),
                     )
 
