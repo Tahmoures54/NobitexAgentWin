@@ -33,7 +33,16 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "research_data")
 UA = {"User-Agent": "CryptoScanner-Research/1.0 (+profitability-study)"}
 HTTP_TIMEOUT = 30.0
-SLEEP_BETWEEN_CALLS = 0.35
+SLEEP_BETWEEN_CALLS = 0.25
+DEADLINE = float("inf")
+
+
+def budget_left() -> float:
+    return DEADLINE - time.time()
+
+
+def out_of_time() -> bool:
+    return budget_left() <= 0
 
 
 # ────────────────────────────── http helper ──────────────────────────────────
@@ -86,7 +95,7 @@ def fetch_bitfinex_1m(base: str, days: int) -> Tuple[List[list], str]:
         if next_cursor <= cursor or len(chunk) < 2:
             break
         cursor = next_cursor
-        if cursor >= end:
+        if cursor >= end or out_of_time():
             break
         time.sleep(SLEEP_BETWEEN_CALLS)
     # normalise to t,o,h,l,c,v
@@ -115,7 +124,7 @@ def fetch_bitstamp_1m(base: str, days: int) -> Tuple[List[list], str]:
         if next_cursor <= cursor:
             break
         cursor = next_cursor
-        if cursor >= end - 60:
+        if cursor >= end - 60 or out_of_time():
             break
         time.sleep(SLEEP_BETWEEN_CALLS)
     rows.sort(key=lambda x: x[0])
@@ -248,7 +257,7 @@ def fetch_bitfinex_trades(base: str, days: int) -> Tuple[List[list], str]:
     buckets: Dict[int, List[float]] = {}
     cursor = start
     calls = 0
-    while cursor < end and calls < 800:
+    while cursor < end and calls < 800 and not out_of_time():
         url = (f"https://api.bitfinex.com/v2/trades/{symbol}/hist"
                f"?limit=10000&start={cursor}&end={end}&sort=1")
         data = http_json(url)
@@ -290,7 +299,7 @@ def fetch_coinbase_trades(base: str, days: int) -> Tuple[List[list], str]:
     buckets: Dict[int, List[float]] = {}
     url = f"https://api.exchange.coinbase.com/products/{product}/trades?limit=1000"
     calls = 0
-    while url and calls < 4000:
+    while url and calls < 4000 and not out_of_time():
         data = http_json(url)
         calls += 1
         if not isinstance(data, list) or not data:
@@ -431,7 +440,12 @@ def main() -> int:
     ap.add_argument("--symbols", default="BTC,ETH")
     ap.add_argument("--skip-ticks", action="store_true")
     ap.add_argument("--skip-nobitex", action="store_true")
+    ap.add_argument("--max-minutes", type=float, default=25.0,
+                    help="wall-clock budget for the whole fetch phase")
     args = ap.parse_args()
+
+    global DEADLINE
+    DEADLINE = time.time() + args.max_minutes * 60.0
 
     os.makedirs(OUT_DIR, exist_ok=True)
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]

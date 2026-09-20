@@ -75,9 +75,86 @@ class Params:
     require_spread_gate: bool = False         # gate needs a real book; modelled as cost
     random_entry: bool = False                # control arm
     random_seed: int = 7
+    random_prob: float = 1e-4                   # entry probability per scan in the control arm
+    # entry confirmation queue (STRATEGY_PRESETS -> confirmation_enabled)
+    confirmation_enabled: bool = False
+    confirmation_pct: float = 0.3
+    confirmation_max_minutes: float = 4.0
+    invalidation_pct: float = 1.2
+    # drawdown circuit breaker (halt_on_max_drawdown)
+    max_drawdown_percent: float = 12.0
+    halt_on_max_drawdown: bool = True
+    intrabar_stops: bool = True               # exchange-side stop_market order exists
 
     def scaled(self, **kw) -> "Params":
         return replace(self, **kw)
+
+
+# The GUI applies the regime-mapped preset on top of bot_config.json on every
+# scan when `auto_regime_strategy` is true (shipped default).  In BALANCED —
+# the regime the detector holds most of the time — the effective live profile
+# is therefore this one, not the raw file.
+BALANCED_PRESET: Dict[str, Any] = {
+    "max_open_positions": 10,
+    "risk_per_trade_pct": 0.75,
+    "max_drawdown_percent": 10.0,
+    "pump_threshold_pct": 1.8,
+    "movement_lookback_scans": 6,
+    "stop_loss_pct": 3.0,
+    "trailing_distance_pct": 2.0,
+    "trailing_activation_pct": 3.0,
+    "trailing_stop_enabled": True,
+    "take_profit_percent": 50.0,
+    "max_position_pct": 25.0,
+    "max_notional_quote": 5_000_000.0,
+    "max_total_exposure_pct": 90.0,
+    "min_volume_24h": 500_000_000.0,
+    "cooldown_after_loss_min": 60,
+    "cooldown_after_win_min": 15,
+    "entry_cooldown_seconds": 180,
+    "max_new_entries_per_cycle": 1,
+    "confirmation_enabled": True,
+    "confirmation_pct": 0.4,
+    "confirmation_max_minutes": 5,
+    "invalidation_pct": 0.8,
+    "max_chase_pct": 0.8,
+    "min_observed_move_pct": 0.8,
+    "btc_max_dump_pct": 2.0,
+    "min_ask_depth_quote": 1_000_000.0,
+    "btc_dump_exception_enabled": True,
+    "min_quality": 0.4,
+}
+
+
+def apply_balanced_preset(p: Params) -> Params:
+    """What the running GUI actually configures in the BALANCED regime."""
+    q = replace(
+        p,
+        max_open_positions=10,
+        risk_per_trade_pct=0.75,
+        max_drawdown_percent=10.0,
+        lookback_scans=6,
+        min_observed_move_pct=0.8,
+        stop_loss_pct=3.0,
+        trailing_activation_pct=3.0,
+        trailing_distance_pct=2.0,
+        take_profit_pct=50.0,
+        max_position_pct=25.0,
+        max_notional_quote=5_000_000.0,
+        max_total_exposure_pct=90.0,
+        min_volume_24h_irt=500_000_000.0,
+        cooldown_after_loss_min=60,
+        cooldown_after_win_min=15,
+        entry_cooldown_sec=180,
+        max_new_entries_per_cycle=1,
+        confirmation_enabled=True,
+        confirmation_pct=0.4,
+        confirmation_max_minutes=5.0,
+        invalidation_pct=0.8,
+        max_chase_pct=0.8,
+        btc_max_dump_pct=2.0,
+    )
+    return q
 
 
 def load_config(path: str = CONFIG_PATH) -> Params:
@@ -112,6 +189,12 @@ def load_config(path: str = CONFIG_PATH) -> Params:
         "max_local_24h_pct": "max_local_24h_pct",
         "btc_max_dump_pct": "btc_max_dump_pct",
         "min_volume_irt": "min_volume_24h_irt",
+        "confirmation_enabled": "confirmation_enabled",
+        "confirmation_pct": "confirmation_pct",
+        "confirmation_max_minutes": "confirmation_max_minutes",
+        "invalidation_pct": "invalidation_pct",
+        "max_drawdown_percent": "max_drawdown_percent",
+        "halt_on_max_drawdown": "halt_on_max_drawdown",
     }
     for cfg_key, attr in mapping.items():
         if cfg_key in cfg and cfg[cfg_key] is not None:
@@ -242,6 +325,9 @@ class SimResult:
     cost_paid: float = 0.0
     fee_paid: float = 0.0
     spread_paid: float = 0.0
+    halted_at: Optional[int] = None
+    pending_expired: int = 0
+    pending_cancelled: int = 0
 
     # ── derived statistics ──
     def stats(self) -> Dict[str, Any]:
@@ -261,6 +347,7 @@ class SimResult:
             if peak > 0:
                 max_dd = max(max_dd, (peak - v) / peak * 100.0)
 
+        assert self.days >= 0
         def _pct(vals: Sequence[float], q: float) -> Optional[float]:
             if not vals:
                 return None
@@ -297,6 +384,14 @@ class SimResult:
             "gross_before_costs_quote": round(sum(pnl) + self.cost_paid, 1),
             "signals_seen": self.signals_seen,
             "entries_blocked": dict(self.entries_blocked),
+            "pending_expired": self.pending_expired,
+            "pending_cancelled": self.pending_cancelled,
+            "halted_at": self.halted_at,
+            "halted_pct_of_window": (
+                round((self.equity_curve[-1][0] - self.halted_at) /
+                      max(1, self.equity_curve[-1][0] - self.equity_curve[0][0]) * 100.0, 1)
+                if self.halted_at else 0.0
+            ),
         }
 
 
@@ -338,6 +433,7 @@ class Engine:
 
         cash = p.account_balance
         equity = p.account_balance
+        peak_equity = p.account_balance
         open_pos: List[Dict[str, Any]] = []
         trades: List[Trade] = []
         curve: List[Tuple[int, float]] = []
@@ -349,6 +445,11 @@ class Engine:
         last_entry_ts: Dict[str, float] = {}
         price_hist: Dict[str, List[float]] = {s: [] for s in data}
         btc_series = data.get("BTC")
+        pending_confirm: Dict[str, Dict[str, float]] = {}
+        halted = False
+        halted_at: Optional[int] = None
+        self.expired = 0
+        self.cancelled = 0
 
         def block(reason: str, n: int = 1) -> None:
             blocked[reason] = blocked.get(reason, 0) + n
@@ -455,10 +556,18 @@ class Engine:
                 px = data[pos["symbol"]].c[i] if i is not None else pos["entry"]
                 mtm += pos["qty"] * px
             equity = cash + mtm
+            peak_equity = max(peak_equity, equity)
             if len(curve) == 0 or ts - curve[-1][0] >= 60:
                 curve.append((int(ts), round(equity, 2)))
+            if (p.halt_on_max_drawdown and not halted and peak_equity > 0
+                    and (1.0 - equity / peak_equity) * 100.0 >= p.max_drawdown_percent):
+                halted = True
+                halted_at = int(ts)
 
             # ── 4. entries (one per cycle max) ──
+            if halted:
+                block("halted_drawdown")
+                continue
             if len(open_pos) >= p.max_open_positions:
                 block("max_open")
                 continue
@@ -487,7 +596,7 @@ class Engine:
 
                 if p.random_entry:
                     # control arm: same exit rules, random entry timing
-                    if len(hist) > p.lookback_scans and self.rng.random() < 1e-4:
+                    if len(hist) > p.lookback_scans and self.rng.random() < p.random_prob:
                         observed = 0.0
                         candidates.append((observed, sym, i, price))
                     continue
@@ -548,6 +657,34 @@ class Engine:
                 if any(pos["symbol"] == sym for pos in open_pos):
                     block("already_open")
                     continue
+
+                # confirmation queue (pending → confirm → buy), live order of checks
+                if p.confirmation_enabled:
+                    pend = pending_confirm.get(sym)
+                    if pend is None:
+                        pending_confirm[sym] = {
+                            "price": price,
+                            "expires": ts + p.confirmation_max_minutes * 60.0,
+                        }
+                        block("pending_created")
+                        continue
+                    if ts >= pend["expires"]:
+                        pending_confirm.pop(sym, None)
+                        self.expired += 1
+                        block("pending_expired")
+                        continue
+                    move = ((price - pend["price"]) / pend["price"] * 100.0
+                            if pend["price"] > 0 else 0.0)
+                    if move >= p.confirmation_pct and move <= p.max_chase_pct:
+                        pending_confirm.pop(sym, None)      # confirmed → buy now
+                    elif move < -abs(p.invalidation_pct):
+                        pending_confirm.pop(sym, None)
+                        self.cancelled += 1
+                        block("pending_invalidated")
+                        continue
+                    else:
+                        block("pending_wait")
+                        continue
 
                 stop = p.stop_loss_pct
                 entry_fill = price * (1.0 + entry_cost_pct / 100.0)
@@ -628,7 +765,8 @@ class Engine:
             end_equity=round(final_equity, 2), trades=trades, equity_curve=curve,
             signals_seen=signals, entries_blocked=blocked,
             cost_paid=round(fee_paid + spread_paid, 2), fee_paid=round(fee_paid, 2),
-            spread_paid=round(spread_paid, 2),
+            spread_paid=round(spread_paid, 2), halted_at=halted_at,
+            pending_expired=self.expired, pending_cancelled=self.cancelled,
         )
 
 
@@ -887,9 +1025,21 @@ def main() -> int:
                         "first": int(b.t[0]), "last": int(b.t[-1])} for s, b in data.items()},
     }
 
-    # 1. baseline: the live default configuration
-    base = Engine(data, p, label="live-defaults", bars_kind=args.bars).run()
-    print_result(base, "LIVE DEFAULTS (fees 0.25%/side, half-spread 0.15%/side, slip 0.05%/side)")
+    # 1a. what the config *file* says
+    base = Engine(data, p, label="file-defaults", bars_kind=args.bars).run()
+    print_result(base, "A) bot_config.json FILE DEFAULTS (fees 0.25%/side, half-spread 0.15%/side, slip 0.05%/side)")
+    report["file_defaults"] = base.stats()
+
+    # 1b. what the running GUI actually applies (regime preset overrides the file)
+    preset_params = apply_balanced_preset(p)
+    preset = Engine(data, preset_params, label="balanced-preset", bars_kind=args.bars).run()
+    print_result(preset, "B) BALANCED REGIME PRESET — what auto_regime_strategy really applies "
+                         "(min move 0.8%, trail 3.0/2.0, TP 50%, confirmation on, 10 slots)")
+    report["balanced_preset"] = preset.stats()
+    report["balanced_preset_params"] = asdict(preset_params)
+
+    base = preset   # the deployed behaviour is the primary arm for the deep-dive blocks
+    print("\n(primary arm for the remaining blocks: balanced-preset = deployed behaviour)")
     report["baseline"] = base.stats()
     report["baseline_bootstrap"] = bootstrap_expectancy(base.trades)
     report["monte_carlo"] = monte_carlo(base.trades, p)
@@ -904,7 +1054,7 @@ def main() -> int:
     print(f"  buy & hold        : {report['buy_and_hold']}")
 
     # 2. zero-cost control: is the *entry signal* itself predictive?
-    zero = Engine(data, p.scaled(fee_pct=0.0, half_spread_pct=0.0, slippage_pct=0.0),
+    zero = Engine(data, preset_params.scaled(fee_pct=0.0, half_spread_pct=0.0, slippage_pct=0.0),
                   label="zero-costs", bars_kind=args.bars).run()
     print_result(zero, "SIGNAL-ONLY (zero fees / zero spread: is the entry edge real?)")
     report["zero_cost"] = zero.stats()
@@ -924,8 +1074,9 @@ def main() -> int:
     report["cost_ladder"] = ladder
 
     # 4. random-entry control (same exits, random timing)
-    rnd = Engine(data, p.scaled(random_entry=True, random_seed=3), label="random-entry",
-                 bars_kind=args.bars).run()
+    rnd = Engine(data, preset_params.scaled(random_entry=True, random_seed=3,
+                                            confirmation_enabled=False, random_prob=1e-3),
+                 label="random-entry", bars_kind=args.bars).run()
     print_result(rnd, "CONTROL — random entries, identical exit rules")
     report["random_entry_control"] = rnd.stats()
 
@@ -935,9 +1086,9 @@ def main() -> int:
         for thr in (0.5, 1.0, 1.5, 2.0, 3.0):
             for trail in (0.6, 1.2, 2.0, 99.0):   # 99 == trailing disabled (pure 3% stop)
                 for stop in (2.0, 3.0, 5.0):
-                    r = Engine(data, p.scaled(min_observed_move_pct=thr,
-                                              trailing_distance_pct=trail,
-                                              stop_loss_pct=stop),
+                    r = Engine(data, preset_params.scaled(min_observed_move_pct=thr,
+                                                          trailing_distance_pct=trail,
+                                                          stop_loss_pct=stop),
                                label=f"T{thr}/trail{trail}/stop{stop}", bars_kind=args.bars).run()
                     st = r.stats()
                     grid.append({"threshold": thr, "trail": trail, "stop": stop,
