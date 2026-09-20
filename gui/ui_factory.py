@@ -350,19 +350,23 @@ class UIFactory:
         groups = [
             ("Market", [
                 ("symbol", "Symbol"), ("price", "Price"), ("bid", "Bid"), ("ask", "Ask"),
-                ("volume", "24h Vol"), ("change24", "24h %"),
+                ("volume", "24h Vol"), ("change24", "24h %"), ("day_open", "Day Open"),
                 ("day_high", "Day High"), ("day_low", "Day Low"), ("day_pos", "Day Pos"),
+                ("day_range", "Day Range"),
             ]),
             ("Flow", [
                 ("buy_pressure", "Buy Pressure"), ("sell_pressure", "Sell Pressure"),
-                ("ratio", "Buy/Sell"), ("imbalance", "OB Imbalance"),
-                ("last_trade", "Last Trade"), ("trades", "Trades"),
+                ("buy_volume", "Buy Vol"), ("sell_volume", "Sell Vol"), ("ratio", "Buy/Sell"),
+                ("bid_depth", "Bid Depth"), ("ask_depth", "Ask Depth"),
+                ("imbalance", "OB Imbalance"), ("last_trade", "Last Trade"),
+                ("last_trade_price", "Last Trade Px"), ("trades", "Trades"),
             ]),
             ("Technical", [
                 ("momentum1", "1m"), ("momentum5", "5m"), ("momentum15", "15m"),
                 ("rsi", "RSI"), ("ema9", "EMA 9"), ("ema21", "EMA 21"),
                 ("ema_trend", "EMA Trend"), ("macd", "MACD"), ("macd_hist", "MACD Hist"),
-                ("volume_ratio", "Vol Ratio"),
+                ("volume_ratio", "Vol Ratio"), ("ohlc5_high", "5m High"),
+                ("ohlc5_low", "5m Low"), ("ohlc5_volume", "5m Vol"), ("candles", "Candles"),
             ]),
         ]
 
