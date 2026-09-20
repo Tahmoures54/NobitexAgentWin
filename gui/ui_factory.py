@@ -87,6 +87,7 @@ class UIFactory:
         self._build_header()
         self._build_market_stats()
         self._build_control_panel()
+        self._build_market_intelligence()
         self._build_treeview()
         self._build_footer()
         self._configure_treeview_tags()
@@ -316,6 +317,89 @@ class UIFactory:
                                    font=T.font(size=T.FONT_XL, weight="bold"),
                                    bg=T.BG_PANEL, fg=T.DANGER)
         app.timer_label.pack(side="left")
+
+    def _build_market_intelligence(self) -> None:
+        """Main-page read-only Nobitex market intelligence panel."""
+        app = self.app
+        outer = tk.Frame(self.root, bg=T.BG_APP)
+        outer.pack(fill="x", padx=T.PAD_LG, pady=(0, T.PAD_MD))
+        card = tk.Frame(
+            outer, bg=T.BG_PANEL, highlightthickness=1,
+            highlightbackground=T.BORDER, relief="flat"
+        )
+        card.pack(fill="x", padx=2, pady=2)
+
+        header = tk.Frame(card, bg=T.BG_PANEL)
+        header.pack(fill="x", padx=T.PAD_2XL, pady=(T.PAD_MD, T.PAD_SM))
+        tk.Label(
+            header, text="📡 Nobitex Market Intelligence",
+            font=T.font(size=T.FONT_BASE, weight="bold"),
+            bg=T.BG_PANEL, fg=T.TEXT_PRIMARY,
+        ).pack(side="left")
+        tk.Label(
+            header,
+            text="Read-only deep data for the selected / active ≥3% pump candidate",
+            font=T.font(size=T.FONT_XS),
+            bg=T.BG_PANEL, fg=T.TEXT_MUTED,
+        ).pack(side="left", padx=T.PAD_MD)
+
+        body = tk.Frame(card, bg=T.BG_PANEL)
+        body.pack(fill="x", padx=T.PAD_2XL, pady=(0, T.PAD_MD))
+        app.market_intelligence_vars = {}
+
+        groups = [
+            ("Market", [
+                ("symbol", "Symbol"), ("price", "Price"), ("bid", "Bid"), ("ask", "Ask"),
+                ("volume", "24h Vol"), ("change24", "24h %"),
+                ("day_high", "Day High"), ("day_low", "Day Low"), ("day_pos", "Day Pos"),
+            ]),
+            ("Flow", [
+                ("buy_pressure", "Buy Pressure"), ("sell_pressure", "Sell Pressure"),
+                ("ratio", "Buy/Sell"), ("imbalance", "OB Imbalance"),
+                ("last_trade", "Last Trade"), ("trades", "Trades"),
+            ]),
+            ("Technical", [
+                ("momentum1", "1m"), ("momentum5", "5m"), ("momentum15", "15m"),
+                ("rsi", "RSI"), ("ema9", "EMA 9"), ("ema21", "EMA 21"),
+                ("ema_trend", "EMA Trend"), ("macd", "MACD"), ("macd_hist", "MACD Hist"),
+                ("volume_ratio", "Vol Ratio"),
+            ]),
+        ]
+
+        for group_name, items in groups:
+            group = tk.Frame(body, bg=T.BG_PANEL)
+            group.pack(side="left", fill="x", expand=True, padx=(0, T.PAD_LG))
+            tk.Label(
+                group, text=group_name,
+                font=T.font(size=T.FONT_XS, weight="bold"),
+                bg=T.BG_PANEL, fg=T.PRIMARY,
+            ).pack(anchor="w", pady=(0, T.PAD_XS))
+            grid = tk.Frame(group, bg=T.BG_PANEL)
+            grid.pack(fill="x")
+            for index, (key, label) in enumerate(items):
+                cell = tk.Frame(grid, bg=T.BG_PANEL)
+                cell.grid(row=index // 5, column=index % 5, sticky="ew",
+                          padx=(0, T.PAD_SM), pady=1)
+                grid.grid_columnconfigure(index % 5, weight=1)
+                tk.Label(
+                    cell, text=label,
+                    font=T.font(size=T.FONT_XS),
+                    bg=T.BG_PANEL, fg=T.TEXT_MUTED,
+                ).pack(anchor="w")
+                var = tk.StringVar(value="--")
+                app.market_intelligence_vars[key] = var
+                tk.Label(
+                    cell, textvariable=var,
+                    font=T.font(size=T.FONT_SM, weight="bold"),
+                    bg=T.BG_PANEL, fg=T.TEXT_PRIMARY,
+                ).pack(anchor="w")
+
+        tk.Label(
+            card, text="Deep snapshot uses Nobitex trades + order book + 1m/5m/15m candles; "
+                       "technical indicators are calculated locally. Live trading is not changed.",
+            font=T.font(size=T.FONT_XS),
+            bg=T.BG_PANEL, fg=T.TEXT_MUTED, anchor="w",
+        ).pack(fill="x", padx=T.PAD_2XL, pady=(0, T.PAD_SM))
 
     def _build_treeview(self) -> None:
         outer = tk.Frame(self.root, bg=T.BG_APP)
