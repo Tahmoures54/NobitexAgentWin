@@ -8,6 +8,8 @@ This project is a trading system, **not a profit guarantee**. Cryptocurrency mar
 
 **Production docs:** [PRODUCTION.md](PRODUCTION.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
 
+**Nobitex paper test:** [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md) · run `python tools/nobitex_preflight.py` before starting the bot.
+
 ## What this release includes
 
 ### v6.9 — Profitability-aware strategy switching

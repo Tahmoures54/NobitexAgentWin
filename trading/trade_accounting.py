@@ -161,8 +161,18 @@ class TradeAccounting:
             if qty <= prior_qty + 1e-12:
                 return {"status": "duplicate", "accounting_complete": fee_known}
             delta_qty = qty - prior_qty
-            delta_gross = max(0.0, qty * price - prior_gross)
-            price = delta_gross / delta_qty if delta_qty > 0 else price
+            # `executed_qty` is cumulative for the order while the reported
+            # price is the *running average* of everything matched so far
+            # (nobitex_client.parse_order -> averagePrice).  The newly matched
+            # part is therefore priced by difference, otherwise every partial
+            # fill re-books the earlier quantity at the new price.
+            # Callers that report the price of just this fill opt out with
+            # `price_is_incremental=True`.
+            if bool(order.get("price_is_incremental")):
+                delta_gross = delta_qty * price
+            else:
+                delta_gross = max(0.0, qty * price - prior_gross)
+                price = delta_gross / delta_qty if delta_qty > 0 else price
             if fee_known and prior and prior["count"]:
                 fee = max(0.0, fee - prior_fee)
             gross = delta_qty * price

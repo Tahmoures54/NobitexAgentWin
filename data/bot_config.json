@@ -16,11 +16,11 @@
     "max_open_positions": 2,
     "max_drawdown_percent": 12.0,
     "halt_on_max_drawdown": true,
-    "pump_threshold_pct": 2.0,
+    "pump_threshold_pct": 1.8,
     "movement_lookback_scans": 4,
     "stop_loss_pct": 3.0,
-    "trailing_distance_pct": 1.2,
-    "trailing_activation_pct": 1.5,
+    "trailing_distance_pct": 2.0,
+    "trailing_activation_pct": 3.0,
     "trailing_stop_enabled": true,
     "take_profit_percent": 0.0,
     "position_size_mode": "risk_percent",
@@ -58,7 +58,7 @@
     "max_spread_pct": 0.9,
     "max_local_fall_pct": 0.5,
     "min_confirm_scans": 1,
-    "min_observed_move_pct": 1.5,
+    "min_observed_move_pct": 1.8,
     "max_local_24h_pct": 12.0,
     "btc_max_dump_pct": 3.0,
     "min_ask_depth_quote": 500000.0,
@@ -80,5 +80,13 @@
         "max_open_positions"
     ],
     "strategy_defaults_version": 11,
-    "trade_log_file": "data/trade_history.json"
+    "trade_log_file": "data/trade_history.json",
+    "paper_half_spread_pct": 0.15,
+    "cost_guard_enabled": true,
+    "min_edge_multiple": 2.0,
+    "max_hold_minutes": 120,
+    "expectancy_guard_enabled": true,
+    "expectancy_guard_trades": 30,
+    "expectancy_guard_min_expectancy_pct": 0.0,
+    "regime_auto_apply_all": false
 }

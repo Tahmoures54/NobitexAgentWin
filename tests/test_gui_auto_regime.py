@@ -80,6 +80,36 @@ def test_auto_regime_applies_known_fields(app, tracker):
     from gui.dialogs import settings_window as sw
     original = dict(sw.STRATEGY_PRESETS["balanced"]["settings"])
     try:
+        # Default (regime_auto_apply_all = False): only opted-in keys are
+        # rewritten, user sizing/risk values survive the 20 s scan.
+        cfg.regime_controlled_keys = ["max_open_positions"]
+        sw.STRATEGY_PRESETS["balanced"]["settings"] = {
+            "fixed_position_quote": 4_000_000.0,
+            "stop_loss_pct": 3.5,
+            "max_open_positions": 7,
+        }
+        app._apply_auto_regime_strategy(BALANCED, cfg)
+
+        assert cfg.max_open_positions == 7
+        assert cfg.fixed_position_quote == 2_000_000.0  # untouched
+        assert cfg.stop_loss_pct != 3.5  # untouched
+        assert app._last_applied_regime_strategy == "balanced"
+    finally:
+        sw.STRATEGY_PRESETS["balanced"]["settings"] = original
+
+
+def test_auto_regime_applies_whole_preset_when_opted_in(app, tracker):
+    app.real_signal_tracker = tracker
+    app.signal_tracker = tracker
+
+    cfg = BotConfig()
+    cfg.auto_regime_strategy = True
+    cfg.regime_auto_apply_all = True
+    cfg.fixed_position_quote = 2_000_000.0
+
+    from gui.dialogs import settings_window as sw
+    original = dict(sw.STRATEGY_PRESETS["balanced"]["settings"])
+    try:
         sw.STRATEGY_PRESETS["balanced"]["settings"] = {
             "fixed_position_quote": 4_000_000.0,
             "stop_loss_pct": 3.5,
@@ -88,7 +118,6 @@ def test_auto_regime_applies_known_fields(app, tracker):
 
         assert cfg.fixed_position_quote == 4_000_000.0
         assert cfg.stop_loss_pct == 3.5
-        assert app._last_applied_regime_strategy == "balanced"
     finally:
         sw.STRATEGY_PRESETS["balanced"]["settings"] = original
 
@@ -107,6 +136,7 @@ def test_auto_regime_rejects_unknown_fields(app, tracker):
             "fixed_position_quote": 3_000_000.0,
             "nonexistent_field_xyz": 999,
         }
+        cfg.regime_auto_apply_all = True  # legacy full-apply path
         app._apply_auto_regime_strategy(BALANCED, cfg)
 
         # Known field applied
