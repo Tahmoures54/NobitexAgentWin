@@ -1830,10 +1830,15 @@ class SignalTracker:
                 stop=rec["current_stop_loss"], extreme=rec["extreme_price"],
                 params=params, size=size,
             )
-            if not ev["should_close"] and int(getattr(self, "max_hold_minutes", 0) or 0) > 0:
+            # the trades table already carries a per-trade max_hold_minutes
+            # column (always NULL until something writes it) - honour it, else
+            # fall back to the tracker-wide setting.
+            hold_limit = int(rec.get("max_hold_minutes")
+                             or getattr(self, "max_hold_minutes", 0) or 0)
+            if not ev["should_close"] and hold_limit > 0:
                 opened = self._parse_ts(rec.get("entry_time"))
                 if opened is not None and (self._now() - opened).total_seconds() >= (
-                        self.max_hold_minutes * 60):
+                        hold_limit * 60):
                     exit_price = cur_price
                     half_spread = float(params.get("half_spread_pct", 0.0) or 0.0)
                     if half_spread > 0:
