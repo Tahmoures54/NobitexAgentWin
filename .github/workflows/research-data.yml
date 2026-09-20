@@ -94,6 +94,20 @@ jobs:
             --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" --time-stop 120 \
             --json-out research_data/results_1m_sweep_t120.json 2>&1 | tee research_data/log_1m_sweep_t120.txt | tail -40
 
+      # Sensitivity: is 120 minutes the reason the arms lose, or would any cap
+      # do?  360 minutes is the midpoint between the shipped cap and no cap at
+      # all, so the three runs bracket the choice instead of assuming it.
+      - name: Backtest - 1m arms + sweep with a 360-minute time stop
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --time-stop 360 \
+            --json-out research_data/results_1m_t360.json 2>&1 | tee research_data/log_1m_t360.txt | tail -40
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --sweep --sweep-cells full \
+            --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" --time-stop 360 \
+            --json-out research_data/results_1m_sweep_t360.json 2>&1 | tee research_data/log_1m_sweep_t360.txt | tail -40
+
       - name: Publish results to the branch
         run: |
           git config user.name "research-bot"

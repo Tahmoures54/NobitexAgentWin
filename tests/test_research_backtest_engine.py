@@ -116,6 +116,9 @@ def test_time_stop_caps_the_hold_and_is_reported_as_its_own_exit():
     assert res["exits"].get("Time Stop") == 1, res["exits"]
     assert res["avg_hold_min"] == pytest.approx(120.0, abs=1.0)
     assert res["trades_detail"][0]["hold_sec"] == pytest.approx(120 * 60, abs=60)
+    # the hold-time histogram has to account for every trade
+    assert sum(res["hold_hist_min"].values()) == res["trades"]
+    assert res["hold_hist_min"]["31-120"] == 1
 
 
 def test_without_the_time_stop_the_same_trade_still_open():

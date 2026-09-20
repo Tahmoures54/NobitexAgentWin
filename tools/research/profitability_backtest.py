@@ -471,6 +471,17 @@ class Engine:
             "avg_hold_min": round(statistics.fmean([t["hold_sec"] for t in trades]) / 60.0, 1)
             if trades else None,
             "trades_detail": trades[:400],
+            # How often would a hold-time cap bind on this geometry?  A cap that
+            # pre-empts the trailing stop on most trades turns the strategy into
+            # a scratch machine that pays the round trip, so the histogram is
+            # part of the evidence, not a footnote.
+            "hold_hist_min": {
+                "<=30": sum(1 for t in trades if t["hold_sec"] <= 1800),
+                "31-120": sum(1 for t in trades if 1800 < t["hold_sec"] <= 7200),
+                "121-360": sum(1 for t in trades if 7200 < t["hold_sec"] <= 21600),
+                "361-720": sum(1 for t in trades if 21600 < t["hold_sec"] <= 43200),
+                ">720": sum(1 for t in trades if t["hold_sec"] > 43200),
+            } if trades else {},
         }
 
 
@@ -650,13 +661,14 @@ def main() -> int:
                                      "max_dd_pct": res["max_drawdown_pct"],
                                      "halted": res["halted"],
                                      "avg_hold_min": res["avg_hold_min"],
+                                     "hold_hist_min": res["hold_hist_min"],
                                      "exits": res["exits"]})
         report["sweep"] = grid
         best = sorted(grid, key=lambda r: -(r["expectancy_pct"] or -999))[:5]
         print("\n== sweep best by expectancy:")
         for row in best:
             print("   " + ", ".join(f"{k}={v}" for k, v in row.items()
-                                    if k not in ("exits", "halted")))
+                                    if k not in ("exits", "halted", "hold_hist_min")))
         positive = [r for r in grid if (r["trades"] or 0) >= 20
                     and (r["expectancy_pct"] or 0) > 0]
         report["sweep_positive_cells"] = positive
