@@ -679,6 +679,117 @@ class NobitexClient(ExchangeBase):
             self._orderbook_cache[market_symbol] = True
         return {"bids": bids, "asks": asks}
 
+    def get_market_intelligence(self, symbol: str, *, trade_limit: int = 50, candle_limit: int = 60) -> Dict[str, Any]:
+        """Return a read-only Nobitex market snapshot plus locally computed indicators."""
+        market_symbol = self.resolve_symbol(symbol)
+        base, quote = self._split_symbol(market_symbol)
+        data = self._request(
+            "GET", "/market/stats",
+            query_params={"srcCurrency": base.lower(), "dstCurrency": self._map_quote(quote)},
+            signed=False,
+        )
+        stats = (data.get("stats", {}) or {}).get(
+            f"{base.lower()}-{self._map_quote(quote)}", {}
+        )
+        price = _safe_float(stats.get("latest"))
+        day_open = _safe_float(stats.get("dayOpen"))
+        day_high = _safe_float(stats.get("dayHigh"))
+        day_low = _safe_float(stats.get("dayLow"))
+        day_position = ((price - day_low) / (day_high - day_low) * 100.0
+                        if day_high > day_low and price > 0 else None)
+
+        book = self.get_order_book(symbol, limit=50)
+        def depth_volume(levels: List[Any]) -> float:
+            total = 0.0
+            for level in levels or []:
+                if isinstance(level, dict):
+                    total += _safe_float(level.get("volume", level.get("amount", 0)))
+                elif isinstance(level, (list, tuple)) and len(level) >= 2:
+                    total += _safe_float(level[1])
+            return total
+
+        bid_depth = depth_volume(book.get("bids", []))
+        ask_depth = depth_volume(book.get("asks", []))
+        depth_total = bid_depth + ask_depth
+        imbalance = ((bid_depth - ask_depth) / depth_total * 100.0
+                     if depth_total > 0 else None)
+        pressure = self.get_buy_sell_pressure(symbol, limit=trade_limit)
+
+        frames: Dict[str, List[Dict[str, Any]]] = {}
+        for interval, limit in (("1m", min(60, candle_limit)),
+                                ("5m", min(60, candle_limit)),
+                                ("15m", min(40, candle_limit))):
+            candles = self.get_klines(symbol, interval=interval, limit=limit)
+            if candles:
+                frames[interval] = candles
+
+        indicators: Dict[str, Any] = {}
+        if frames.get("5m"):
+            import pandas as pd
+            from analysis.indicators import calculate_all_indicators
+            c5 = pd.DataFrame(frames["5m"])
+            indicators.update(calculate_all_indicators(
+                c5["high"], c5["low"], c5["close"], c5["volume"],
+            ))
+            close5 = c5["close"]
+            if len(close5) >= 21:
+                ema9 = close5.ewm(span=9, adjust=False).mean().iloc[-1]
+                ema21 = close5.ewm(span=21, adjust=False).mean().iloc[-1]
+                indicators["ema9"] = float(ema9)
+                indicators["ema21"] = float(ema21)
+                indicators["ema_trend"] = "Bullish" if ema9 > ema21 else "Bearish"
+            else:
+                indicators.update({"ema9": None, "ema21": None, "ema_trend": "Insufficient data"})
+            latest_vol = float(c5["volume"].iloc[-1])
+            avg_vol = float(c5["volume"].iloc[:-1].tail(20).mean()) if len(c5) > 1 else 0.0
+            indicators["volume_ratio"] = latest_vol / avg_vol if avg_vol > 0 else None
+
+        def summary(interval: str) -> Dict[str, Any]:
+            candles = frames.get(interval, [])
+            if not candles:
+                return {"change_pct": None, "high": None, "low": None, "volume": None}
+            first, last = candles[0], candles[-1]
+            opening, closing = _safe_float(first["open"]), _safe_float(last["close"])
+            return {
+                "change_pct": ((closing - opening) / opening * 100.0) if opening > 0 else None,
+                "high": max(_safe_float(x["high"]) for x in candles),
+                "low": min(_safe_float(x["low"]) for x in candles),
+                "volume": sum(_safe_float(x["volume"]) for x in candles),
+            }
+
+        s5 = summary("5m")
+        return {
+            "symbol": base, "pair": market_symbol, "price": price,
+            "bid": _safe_float(stats.get("bestBuy")), "ask": _safe_float(stats.get("bestSell")),
+            "volume_24h": _safe_float(stats.get("volumeDst")),
+            "change_24h_pct": _safe_float(stats.get("dayChange")),
+            "day_open": day_open, "day_high": day_high, "day_low": day_low,
+            "day_range": day_high - day_low if day_high > day_low else None,
+            "day_position_pct": day_position,
+            "bid_depth": bid_depth, "ask_depth": ask_depth,
+            "orderbook_imbalance_pct": imbalance,
+            "trades_count": pressure.get("trades_count", 0),
+            "buy_volume": pressure.get("buy_volume", 0.0),
+            "sell_volume": pressure.get("sell_volume", 0.0),
+            "buy_pressure_pct": pressure.get("buy_pressure_pct"),
+            "sell_pressure_pct": pressure.get("sell_pressure_pct"),
+            "buy_sell_ratio": pressure.get("buy_sell_ratio"),
+            "last_trade_type": pressure.get("last_trade_type"),
+            "last_trade_price": pressure.get("last_trade_price"),
+            "momentum_1m_pct": summary("1m")["change_pct"],
+            "momentum_5m_pct": s5["change_pct"],
+            "momentum_15m_pct": summary("15m")["change_pct"],
+            "ohlc_5m": s5,
+            "rsi": indicators.get("rsi"), "macd": indicators.get("macd"),
+            "macd_signal": indicators.get("macd_signal"), "macd_hist": indicators.get("macd_hist"),
+            "ema9": indicators.get("ema9"), "ema21": indicators.get("ema21"),
+            "ema_trend": indicators.get("ema_trend"), "volume_ratio": indicators.get("volume_ratio"),
+            "adx": indicators.get("adx"), "stoch_k": indicators.get("stoch_k"),
+            "stoch_d": indicators.get("stoch_d"),
+            "candles_available": {k: len(v) for k, v in frames.items()},
+            "timestamp": int(time.time() * 1000),
+        }
+
     def get_balances(self, force_refresh: bool = False) -> Dict[str, float]:
         """
         Fetch account balances.
