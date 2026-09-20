@@ -8,9 +8,30 @@ This project is a trading system, **not a profit guarantee**. Cryptocurrency mar
 
 **Production docs:** [PRODUCTION.md](PRODUCTION.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
 
-## What this release includes\n\n### v7.0 — L2 order-flow microstructure gate\n\nCandidate entries can now be confirmed against Nobitex top-of-book pressure. The gate calculates bid/ask visible depth imbalance, spread and microprice bias, records an interpretable 0–100 order-flow score, and can reject weak buy pressure before execution. It is deliberately a confirmation layer: regime selection, strategy performance, sizing, stops, accounting and execution safeguards remain in control.
+**Nobitex paper test:** [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md) · run `python tools/nobitex_preflight.py` before starting the bot.
 
-### v7.0 — Profitability-aware strategy switching
+## What this release includes
+
+### v7.0 — L2 order-flow microstructure gate
+
+Candidate BUY entries are now confirmed against Nobitex top-of-book pressure. The
+gate derives visible bid/ask depth imbalance, spread and microprice bias into an
+interpretable 0–100 order-flow score and rejects weak visible demand before
+execution. It is deliberately a **confirmation layer**: regime selection, realized
+strategy performance, sizing, stops, accounting and the v6.9.1 profitability
+guards all remain in control.
+
+Two further entry-side filters ship with it: a three-scan confirmation queue (a
+mover must persist for `min_confirm_scans` consecutive scans within
+`confirmation_max_minutes` before it can be bought) and a conservative online
+logistic trade-outcome learner that abstains until it has seen
+`ml_min_samples=30` closed trades. Neither changes sizing or exits.
+
+> The 100-day x 18-market study behind v6.9.1 (`PROFITABILITY_ANALYSIS.md`) still
+> finds every realistic arm net negative. These gates reduce how often the bot
+> trades; they are not an edge and not a profitability claim.
+
+### v6.9 — Profitability-aware strategy switching
 
 The adaptive layer now uses realized closed-trade performance in addition to market regime. A strategy needs a minimum sample before its results can influence switching; negative realized expectancy can veto a regime-selected strategy in favor of a positive, sufficiently sampled alternative. Switch hysteresis prevents scan-to-scan flapping. The selected strategy is recorded with new trades so future performance is attributable to the strategy that actually generated the entry.
 
@@ -18,13 +39,25 @@ The adaptive layer now uses realized closed-trade performance in addition to mar
 Nobitex only: market stats, order book, candles, balances, spot orders, status and cancel.
 
 ### Strategy behavior (default profile)
-1. Enter on **real observed local move** (default ~1.5–2%), not micro-noise.
+1. Enter on **real observed local move** (3% in the shipped profile), not micro-noise.
 2. Reject wide spread, weak volume, and excessive chase.
-3. Place a **hard stop** on entry (default ~3%).
-4. **Trail the stop** when in profit (activate ~1.5%, distance ~1.2%).
-5. Take-profit percent default **0** — primary exit is the trailing stop.
-6. BTC dump guard + limited Eagle exception for strong liquid movers.
-7. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
+3. **Order-flow gate**: require a minimum L2 microstructure score (58/100) and a
+   sane top-of-book spread before a BUY is allowed.
+4. **Three-scan confirmation**: the move must persist across 3 consecutive scans
+   within a 10-minute window, and an online learner (once it has 30+ closed
+   trades) must put the probability of a positive net outcome at ≥ 0.58.
+5. **Cost guard**: reject an entry whose observed move is less than `min_edge_multiple` × the round-trip cost (2 × fee + spread), or whose trailing gap cannot pay for the round trip at all. Skips are logged as `cost_guard`.
+6. Place a **hard stop** on entry (default 3%).
+7. **Trail the stop** when in profit (activate 3.0%, distance 2.0% — the armed level is floored at the entry price, so the smallest trailing win is ~+1% gross, above the ~0.8% round trip).
+8. Take-profit percent default **0** — primary exit is the trailing stop; `max_hold_minutes` (360 in the shipped profile) closes positions that never develop. The 2 h / 6 h / uncapped sensitivity behind that choice is in `PROFITABILITY_ANALYSIS.md` §11-6: a tighter cap pre-empts the trailing stop on most trades, a missing cap leaves dead positions open for days — and neither turns the economics positive.
+9. **Expectancy guard**: if the mean net P&L of the last `expectancy_guard_trades` closed trades falls below `expectancy_guard_min_expectancy_pct`, new entries stop and `halt_reason` records why.
+10. Paper mode now pays `paper_half_spread_pct` on every simulated fill (entry and exit), so paper results are not optimistically biased.
+11. BTC dump guard + limited Eagle exception for strong liquid movers.
+12. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
+
+Auto-regime switching rewrites only the keys listed in `regime_controlled_keys` (default: `max_open_positions`); set `regime_auto_apply_all: true` for the legacy behaviour where a preset replaces the whole profile.
+
+**Before running against Nobitex:** `python tools/nobitex_preflight.py` — see [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md).
 
 ### Phase-1 production hardening
 Structured logging, rate limiter, retry policy, SQLite ledger, idempotency, graceful shutdown, watchdog.
@@ -37,14 +70,18 @@ Structured logging, rate limiter, retry policy, SQLite ledger, idempotency, grac
 | Setting | Default |
 |---------|---------|
 | Execution mode | **paper** |
-| Position sizing | `risk_percent` (~1% risk/trade) |
+| Position sizing | `risk_percent` (0.5% risk/trade) |
 | Stop loss | 3% |
-| Trailing | on — act 1.5% / dist 1.2% |
+| Trailing | on — act 3.0% / dist 2.0% |
 | Take profit | 0 (trail-driven exits) |
-| Max open positions | 4 |
-| Max total exposure | 50% |
+| Time stop | `max_hold_minutes` 360 |
+| Max open positions | 2 |
+| Max total exposure | 30% |
 | Max new entries / cycle | 1 |
-| Fee model (sim) | 0.25% |
+| Entry move | 3% observed, 3 confirming scans |
+| Order-flow gate | on — min score 58 |
+| Online ML gate | on — ≥ 0.58, abstains under 30 samples |
+| Fee model (sim) | 0.25% + 0.15% half-spread per fill |
 
 Validate on your account size in paper before any live change.
 
@@ -70,13 +107,18 @@ pip install -r requirements.txt
 
 ## Nobitex paper-data capture
 
-For a real-market observation session, the repository includes a **read-only** recorder. It never places or cancels orders. It records IRT movers and L2 order-book pressure so tomorrow's paper session can be measured against real Nobitex conditions.
+For a real-market observation session the repository includes a **read-only**
+recorder. It never places or cancels orders — it only reads public market stats and
+the L2 order book, and writes IRT movers plus order-flow pressure to a CSV so a
+paper session can be measured against real Nobitex conditions.
 
 ```bat
-py tools/nobitex_paper_capture.py --hours 8 --interval 15 --top 40
+py tools\nobitex_paper_capture.py --hours 8 --interval 15 --top 40
 ```
 
-The default output is `data/nobitex_paper_capture.csv`. The recorder only uses public market/order-book endpoints and filters candidates at **3% reported market change** by default. Keep the normal application in **paper** execution mode while testing.
+Output defaults to `data/nobitex_paper_capture.csv`; candidates are filtered at
+**3% reported market change** by default. Keep the application in **paper**
+execution mode while capturing.
 
 ## Run
 

@@ -114,7 +114,31 @@ class TradeAccountingTests(unittest.TestCase):
         snap = a.snapshot({"BTC": 120})
         self.assertAlmostEqual(snap["assets"][0]["quantity"], 10)
         self.assertAlmostEqual(snap["assets"][0]["cost_basis_quote"], 1000)
+        # 20 @100 sold as 5 @110 then 10 @120: Nobitex's `executed_price` is the
+        # running average of the order (nobitex_client.parse_order ->
+        # averagePrice), so the 5-unit delta is priced at
+        # (10*120 - 5*110) / 5 = 130 -> (110-100)*5 + (130-100)*5 = 200.
         self.assertAlmostEqual(snap["realized_pnl_quote"], 200)
+
+    def test_incremental_price_flag_prices_the_delta_directly(self):
+        a = self.make()
+        a.ingest_order({
+            "order_id": "80", "symbol": "BTCIRT", "side": "buy",
+            "executed_qty": 20, "executed_price": 100,
+            "fee": 0, "fee_currency": "IRT",
+        })
+        a.ingest_order({
+            "order_id": "81", "symbol": "BTCIRT", "side": "sell",
+            "executed_qty": 5, "executed_price": 110,
+            "fee": 0, "fee_currency": "IRT", "price_is_incremental": True,
+        })
+        a.ingest_order({
+            "order_id": "81", "symbol": "BTCIRT", "side": "sell",
+            "executed_qty": 10, "executed_price": 120,
+            "fee": 0, "fee_currency": "IRT", "price_is_incremental": True,
+        })
+        snap = a.snapshot({"BTC": 120})
+        self.assertAlmostEqual(snap["realized_pnl_quote"], 150)
 
     def test_zero_fee_is_a_known_fee(self):
         a = self.make()

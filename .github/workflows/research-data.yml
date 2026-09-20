@@ -1,0 +1,126 @@
+name: Research data (profitability study)
+
+# Fetches public market data on the runner, replays the bot's live rules and
+# publishes the (small) result JSON back to the branch. Market data itself is
+# never committed - only the summary numbers needed to review the study.
+
+on:
+  push:
+    branches: [arena/01a0bcf4-nobitexagentwin]
+    paths:
+      - 'tools/research/**'
+      - '.github/workflows/research-data.yml'
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: '1m symbol basket'
+        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO'
+      tick_days:
+        description: 'days of 1s archives (10s bars)'
+        default: '7'
+
+permissions:
+  contents: write
+
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Fetch market data (1m archives + 1s archives + Nobitex probe)
+        run: |
+          set -o pipefail
+          mkdir -p research_data
+          python -V
+          python -u tools/research/fetch_market_data.py \
+            --out research_data --days 120 --tick-days "${{ github.event.inputs.tick_days || 7 }}" \
+            --symbols "${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO' }}" \
+            --tick-symbols "BTC,ETH,SOL,XRP" \
+            2>&1 | tee research_data/log_fetch.txt | tail -60 \
+            || echo "::error::fetch failed - see research_data/log_fetch.txt (published with the results)"
+          ls -la research_data | head -30 || true
+
+      - name: Backtest - 10s bars (live cadence) + sweep
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 10s --sweep \
+            --json-out research_data/results_10s.json 2>&1 | tee research_data/log_10s.txt | tail -60
+
+      - name: Backtest - 1m bars, full basket
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m \
+            --json-out research_data/results_1m.json 2>&1 | tee research_data/log_1m.txt | tail -60
+
+      - name: Backtest - 1m sweep on liquid subset
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --sweep --sweep-cells full \
+            --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" \
+            --json-out research_data/results_1m_sweep.json 2>&1 | tee research_data/log_1m_sweep.txt | tail -40
+
+      # The shipped test profile (data/bot_config.json) caps every trade at
+      # max_hold_minutes=120.  A trailing stop armed at 3% may simply never get
+      # there, which turns each trade into a cost-paying scratch - so the same
+      # arms and the same 96-cell grid are re-run with that time stop on.
+      - name: Backtest - 10s bars with the shipped 120-minute time stop
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 10s --sweep --time-stop 120 \
+            --json-out research_data/results_10s_t120.json 2>&1 | tee research_data/log_10s_t120.txt | tail -40
+
+      - name: Backtest - 1m bars with the shipped 120-minute time stop
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --time-stop 120 \
+            --json-out research_data/results_1m_t120.json 2>&1 | tee research_data/log_1m_t120.txt | tail -40
+
+      - name: Backtest - 1m sweep with the shipped 120-minute time stop
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --sweep --sweep-cells full \
+            --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" --time-stop 120 \
+            --json-out research_data/results_1m_sweep_t120.json 2>&1 | tee research_data/log_1m_sweep_t120.txt | tail -40
+
+      # Sensitivity: is 120 minutes the reason the arms lose, or would any cap
+      # do?  360 minutes is the midpoint between the shipped cap and no cap at
+      # all, so the three runs bracket the choice instead of assuming it.
+      - name: Backtest - 1m arms + sweep with a 360-minute time stop
+        continue-on-error: true
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --time-stop 360 \
+            --json-out research_data/results_1m_t360.json 2>&1 | tee research_data/log_1m_t360.txt | tail -40
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m --sweep --sweep-cells full \
+            --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" --time-stop 360 \
+            --json-out research_data/results_1m_sweep_t360.json 2>&1 | tee research_data/log_1m_sweep_t360.txt | tail -40
+
+      - name: Publish results to the branch
+        run: |
+          git config user.name "research-bot"
+          git config user.email "research-bot@users.noreply.github.com"
+          mkdir -p research_results
+          cp research_data/results_*.json research_data/log_*.txt research_data/fetch_report.json research_results/ 2>/dev/null || true
+          python tools/research/trim_results.py || true
+          du -sh research_results
+          git add -f research_results
+          git commit -m "chore(research): profitability study results [skip ci]" || echo "nothing to commit"
+          # the branch may have moved while the study ran (docs commits); rebase
+          # and report a failure loudly instead of silently dropping the results.
+          git pull --rebase origin "$GITHUB_REF_NAME" \
+            || echo "::warning::could not rebase on the latest $GITHUB_REF_NAME before publishing"
+          git push origin "HEAD:$GITHUB_REF_NAME" \
+            || echo "::error::publishing the results to $GITHUB_REF_NAME failed - the numbers are in this run's logs only"

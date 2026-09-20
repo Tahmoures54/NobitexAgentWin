@@ -55,7 +55,7 @@ DEFAULT_MAX_NOTIONAL_QUOTE = 8_000_000.0
 DEFAULT_MIN_NOTIONAL_QUOTE = 500_000.0
 DEFAULT_MAX_POSITION_PCT = 15.0
 DEFAULT_MAX_TOTAL_EXPOSURE_PCT = 40.0
-STRATEGY_DEFAULTS_VERSION = 9
+STRATEGY_DEFAULTS_VERSION = 10
 
 DEFAULT_CONFIG_FILE = os.path.join(APPDATA_DIR, "bot_config.json")
 _CREDENTIALS_FILE = os.path.join(APPDATA_DIR, "nobitex_credentials.enc")
@@ -221,8 +221,18 @@ class BotConfig:
     eagle_min_volume_irt: float = 300_000_000.0
     eagle_max_spread_pct: float = 0.9
 
+    # ── Profitability guards (see PROFITABILITY_ANALYSIS.md) ─
+    cost_guard_enabled: bool = False
+    min_edge_multiple: float = 0.0
+    paper_half_spread_pct: float = 0.0
+    max_hold_minutes: int = 0
+    expectancy_guard_enabled: bool = False
+    expectancy_guard_trades: int = 30
+    expectancy_guard_min_expectancy_pct: float = 0.0
+
     # ── Auto-regime strategy ─────────────────────────────────
     auto_regime_strategy: bool = False
+    regime_auto_apply_all: bool = False
     regime_strategy_map: Dict[str, str] = field(
         default_factory=lambda: {
             "AGGRESSIVE":   "aggressive",
@@ -586,6 +596,28 @@ PROFITABILITY_DEFAULTS: Dict[str, Any] = {
     "cooldown_after_loss_min": 60,
 }
 
+# v11 - profitability guards from PROFITABILITY_ANALYSIS.md.  `setdefault`
+# semantics at the call site: a config that already sets a key keeps it.
+PROFITABILITY_GUARD_DEFAULTS: Dict[str, Any] = {
+    "strategy_defaults_version": 11,
+    "cost_guard_enabled": True,
+    "min_edge_multiple": 2.0,
+    "paper_half_spread_pct": 0.15,
+    # 6 hours.  The hold-time sensitivity in PROFITABILITY_ANALYSIS.md §11-6
+    # measured 120 / 360 / uncapped on 100 days x 18 markets: a 2-hour cap
+    # pre-empted the trailing stop on 62% of all swept trades (77% of the
+    # balanced geometry) and left 0 of 96 exit geometries with a positive
+    # return, while 6 hours caps the multi-day holds the time stop exists for
+    # and binds on ~10-38% of trades instead.  Neither is profitable; 360 is
+    # the one that still lets the exit geometry be what is measured.
+    "max_hold_minutes": 360,
+    "expectancy_guard_enabled": True,
+    "expectancy_guard_trades": 30,
+    "expectancy_guard_min_expectancy_pct": 0.0,
+    "regime_auto_apply_all": False,
+}
+
+
 NOBITEX_ONLY_DEFAULTS: Dict[str, Any] = {
     "strategy_defaults_version": 7,
     "strategy": "nobitex_momentum",
@@ -657,6 +689,17 @@ def apply_to_tracker(
     tracker.invalidation_pct = float(cfg.invalidation_pct)
     tracker.max_chase_pct = float(cfg.max_chase_pct)
 
+    # Profitability guards (PROFITABILITY_ANALYSIS.md): cost guard, honest
+    # paper fills, time stop and the expectancy kill-switch.
+    tracker.cost_guard_enabled = bool(cfg.cost_guard_enabled)
+    tracker.min_edge_multiple = float(cfg.min_edge_multiple)
+    tracker.paper_half_spread_pct = float(cfg.paper_half_spread_pct)
+    tracker.max_hold_minutes = int(cfg.max_hold_minutes)
+    tracker.expectancy_guard_enabled = bool(cfg.expectancy_guard_enabled)
+    tracker.expectancy_guard_trades = int(cfg.expectancy_guard_trades)
+    tracker.expectancy_guard_min_expectancy_pct = float(
+        cfg.expectancy_guard_min_expectancy_pct)
+
     if hasattr(tracker, "quote_currency"):
         tracker.quote_currency = str(cfg.quote_currency or "IRT").upper()
 
@@ -710,6 +753,10 @@ def load_config(file_path: str = DEFAULT_CONFIG_FILE) -> BotConfig:
             if version < 8:
                 for k, v in EAGLE_DEFAULTS.items():
                     data.setdefault(k, v)
+            if version < 11:
+                for k, v in PROFITABILITY_GUARD_DEFAULTS.items():
+                    data.setdefault(k, v)
+                data["strategy_defaults_version"] = 11
 
             cfg = BotConfig.from_dict(data)
             cfg.execution_mode = normalize_execution_mode(
@@ -835,6 +882,7 @@ __all__ = [
     "DEFAULT_MAX_POSITION_PCT",
     "DEFAULT_MAX_TOTAL_EXPOSURE_PCT",
     "STRATEGY_DEFAULTS_VERSION",
+    "PROFITABILITY_GUARD_DEFAULTS",
     "TREND_EV_DEFAULTS",
     "POSITION_SIZE_DEFAULTS",
     "EARLY_TREND_DEFAULTS",

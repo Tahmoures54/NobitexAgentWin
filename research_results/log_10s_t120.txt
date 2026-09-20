@@ -1,0 +1,61 @@
+== loading 10s bars from research_data
+  loaded BTC: 60480 bars (10s)
+  loaded ETH: 60480 bars (10s)
+  loaded SOL: 60480 bars (10s)
+  loaded XRP: 60480 bars (10s)
+== applying a 120-minute time stop to every arm
+
+== file_defaults: trades=0 win=None expectancy=0.0% return=0.0% dd=0.0% pf=None halted=False
+
+== balanced_preset: trades=8 win=12.5 expectancy=-0.9812% return=-1.953% dd=3.349% pf=0.213 halted=False
+
+== conservative_preset: trades=0 win=None expectancy=0.0% return=0.0% dd=0.0% pf=None halted=False
+
+== file_defaults_zero_cost: trades=0 win=None expectancy=0.0% return=0.0% dd=0.0% pf=None halted=False
+
+== balanced_preset_zero_cost: trades=8 win=50.0 expectancy=-0.2819% return=-0.573% dd=2.574% pf=0.665 halted=False
+
+== balanced_preset_paper_stops: trades=8 win=12.5 expectancy=-0.9812% return=-1.953% dd=3.349% pf=0.213 halted=False
+
+== file_defaults_no_trailing: trades=0 win=None expectancy=0.0% return=0.0% dd=0.0% pf=None halted=False
+
+== balanced_preset_no_trailing: trades=8 win=12.5 expectancy=-0.9812% return=-1.953% dd=3.349% pf=0.213 halted=False
+
+== random_entries (rate=1.240e-05, target~0): trades=3 win=0.0 expectancy=-1.3018% return=-0.591%
+
+== buy & hold: {'BTC': {'return_pct': 5.15, 'max_drawdown_pct': 5.74}, 'ETH': {'return_pct': 4.24, 'max_drawdown_pct': 9.68}, 'SOL': {'return_pct': 9.14, 'max_drawdown_pct': 8.5}, 'XRP': {'return_pct': 3.22, 'max_drawdown_pct': 16.03}}
+
+== forward study: events=0
+
+== sweep best by expectancy:
+   threshold=0.8, lookback=6, trail_activation=1.5, trail_distance=0.6, stop=3.0, trades=9, win_rate=55.56, expectancy_pct=-0.6419, return_pct=-0.964, max_dd_pct=1.742, avg_hold_min=45.0
+   threshold=0.8, lookback=4, trail_activation=1.5, trail_distance=0.6, stop=3.0, trades=5, win_rate=40.0, expectancy_pct=-0.9346, return_pct=-0.779, max_dd_pct=1.626, avg_hold_min=76.4
+   threshold=0.8, lookback=4, trail_activation=1.5, trail_distance=1.2, stop=3.0, trades=5, win_rate=20.0, expectancy_pct=-1.056, return_pct=-0.879, max_dd_pct=1.726, avg_hold_min=81.0
+   threshold=0.8, lookback=6, trail_activation=3.0, trail_distance=2.0, stop=3.0, trades=7, win_rate=14.29, expectancy_pct=-1.1177, return_pct=-1.282, max_dd_pct=2.021, avg_hold_min=91.5
+   threshold=0.8, lookback=6, trail_activation=3.0, trail_distance=1.0, stop=3.0, trades=7, win_rate=14.29, expectancy_pct=-1.1177, return_pct=-1.282, max_dd_pct=2.021, avg_hold_min=91.5
+   positive cells (>=20 trades): 0/16
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 6, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 3.0}
+   half1: trades=5 expectancy=-1.4788% return=-1.24% halted=False
+   half2: trades=4 expectancy=0.4043% return=0.28% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 4, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 3.0}
+   half1: trades=4 expectancy=-1.5466% return=-1.028% halted=False
+   half2: trades=1 expectancy=1.5135% return=0.252% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 4, 'trail_activation': 1.5, 'trail_distance': 1.2, 'stop': 3.0}
+   half1: trades=4 expectancy=-1.6984% return=-1.128% halted=False
+   half2: trades=1 expectancy=1.5135% return=0.252% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 6, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
+   half1: trades=5 expectancy=-1.937% return=-1.597% halted=False
+   half2: trades=2 expectancy=0.9306% return=0.32% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 6, 'trail_activation': 3.0, 'trail_distance': 1.0, 'stop': 3.0}
+   half1: trades=5 expectancy=-1.937% return=-1.597% halted=False
+   half2: trades=2 expectancy=0.9306% return=0.32% halted=False
+
+   cells positive in BOTH halves: 0/5
+   ...with >=10 trades in each half: 0/5
+
+wrote research_data/results_10s_t120.json

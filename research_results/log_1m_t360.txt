@@ -1,0 +1,49 @@
+== loading 1m bars from research_data
+  loaded AAVE: 145012 bars (1m)
+  loaded ADA: 145014 bars (1m)
+  loaded ALGO: 145011 bars (1m)
+  loaded ATOM: 145012 bars (1m)
+  loaded AVAX: 145014 bars (1m)
+  loaded BCH: 145013 bars (1m)
+  loaded BTC: 145016 bars (1m)
+  loaded DOGE: 145014 bars (1m)
+  loaded DOT: 145013 bars (1m)
+  loaded ETH: 145015 bars (1m)
+  loaded FIL: 145012 bars (1m)
+  loaded LINK: 145013 bars (1m)
+  loaded LTC: 145013 bars (1m)
+  loaded NEAR: 145012 bars (1m)
+  loaded SOL: 145015 bars (1m)
+  loaded TRX: 145013 bars (1m)
+  loaded UNI: 145012 bars (1m)
+  loaded XRP: 145014 bars (1m)
+== applying a 360-minute time stop to every arm
+
+== file_defaults: trades=104 win=43.27 expectancy=-0.7426% return=-11.334% dd=12.003% pf=0.446 halted=True
+
+== balanced_preset: trades=53 win=45.28 expectancy=-0.4619% return=-5.259% dd=10.039% pf=0.672 halted=True
+
+== conservative_preset: trades=93 win=46.24 expectancy=-0.6375% return=-11.359% dd=12.051% pf=0.448 halted=True
+
+== file_defaults_zero_cost: trades=219 win=56.16 expectancy=-0.1652% return=-6.308% dd=9.674% pf=0.83 halted=False
+
+== balanced_preset_zero_cost: trades=128 win=48.44 expectancy=-0.1025% return=-2.39% dd=10.054% pf=0.934 halted=True
+
+== balanced_preset_paper_stops: trades=52 win=44.23 expectancy=-0.498% return=-5.232% dd=10.014% pf=0.673 halted=True
+
+== file_defaults_no_trailing: trades=53 win=20.75 expectancy=-1.3408% return=-10.61% dd=12.094% pf=0.393 halted=True
+
+== balanced_preset_no_trailing: trades=46 win=41.3 expectancy=-0.4289% return=-4.168% dd=10.085% pf=0.723 halted=True
+
+== random_entries (rate=9.379e-05, target~104): trades=75 win=29.33 expectancy=-0.9937% return=-11.045%
+
+== buy & hold: {'AAVE': {'return_pct': 45.76, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.1, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -22.88, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.09, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.53, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.56, 'max_drawdown_pct': 49.94}, 'BTC': {'return_pct': 4.26, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.81, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.26, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.82, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -28.91, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.77, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.68, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -6.61, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.41, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.02, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 56.32, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.69, 'max_drawdown_pct': 28.07}}
+
+== forward study: events=1168
+   h1m: {'mean_pct': -0.0439, 'median_pct': -0.0522, 'pct_positive': 41.44, 'mean_mfe_pct': 0.3087, 'mean_mae_pct': -0.3432, 'prob_mfe_ge_stop_before_mae': 2.74}
+   h5m: {'mean_pct': -0.127, 'median_pct': -0.1704, 'pct_positive': 37.33, 'mean_mfe_pct': 0.5519, 'mean_mae_pct': -0.7001, 'prob_mfe_ge_stop_before_mae': 5.91}
+   h15m: {'mean_pct': -0.1231, 'median_pct': -0.1647, 'pct_positive': 42.38, 'mean_mfe_pct': 0.8834, 'mean_mae_pct': -1.0038, 'prob_mfe_ge_stop_before_mae': 18.41}
+   h30m: {'mean_pct': -0.0602, 'median_pct': -0.0953, 'pct_positive': 47.52, 'mean_mfe_pct': 1.1984, 'mean_mae_pct': -1.328, 'prob_mfe_ge_stop_before_mae': 29.97}
+   h60m: {'mean_pct': 0.0423, 'median_pct': 0.1183, 'pct_positive': 52.23, 'mean_mfe_pct': 1.5912, 'mean_mae_pct': -1.6908, 'prob_mfe_ge_stop_before_mae': 42.64}
+
+wrote research_data/results_1m_t360.json
