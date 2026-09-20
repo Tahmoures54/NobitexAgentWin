@@ -29,7 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from signal_tracker import SignalTracker  # noqa: E402
-from trading.bot_config import load_config  # noqa: E402
+from trading.bot_config import DEFAULT_CONFIG_FILE, load_config  # noqa: E402
 
 GUARD_FIELDS = (
     "trading_fee_pct",
@@ -173,7 +173,10 @@ def online_report(cfg, pairs: List[str]) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="پیش‌پرواز تست نوبیتکس")
-    parser.add_argument("--config", default=str(ROOT / "data" / "bot_config.json"))
+    # Same resolution the app itself uses (<project>/data/bot_config.json, or
+    # $CRYPTOSCANNER_APPDATA when set) - a relative path would be resolved
+    # against the app-data directory, not the current working directory.
+    parser.add_argument("--config", default=DEFAULT_CONFIG_FILE)
     parser.add_argument("--offline", action="store_true",
                         help="بدون تماس با شبکه، فقط حساب‌وکتاب هزینه")
     parser.add_argument("--pair", action="append", default=None,
