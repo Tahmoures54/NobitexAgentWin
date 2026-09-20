@@ -1229,6 +1229,7 @@ class CryptoScannerApp:
                         min_depth = float(getattr(cfg, "min_ask_depth_quote", 0.0) or 0.0) if cfg else 0.0
                         depth_checked = 0
                         depth_rejected = 0
+                        l2_reject_reasons: Dict[str, int] = {}
                         if (min_depth > 0 or bool(getattr(cfg, "order_flow_enabled", True))) and candidates:
                             enriched = []
                             for hit in candidates:
@@ -1238,6 +1239,9 @@ class CryptoScannerApp:
                                 except Exception as exc:
                                     logger.warning("%s[DEPTH] %s unavailable: %s", tag, symbol, exc)
                                     depth_rejected += 1
+                                    l2_reject_reasons["orderbook_unavailable"] = (
+                                        l2_reject_reasons.get("orderbook_unavailable", 0) + 1
+                                    )
                                     continue
                                 asks = (book or {}).get("asks") or []
                                 depth = self._orderbook_quote_depth(asks, n=5)
@@ -1270,16 +1274,28 @@ class CryptoScannerApp:
                                     hit["OrderFlowGate"] = "PASS" if allowed else reason
                                     if not allowed:
                                         depth_rejected += 1
+                                        l2_reject_reasons[reason] = l2_reject_reasons.get(reason, 0) + 1
                                         continue
                                 else:
                                     hit["OrderFlowGate"] = "DISABLED"
                                 enriched.append(hit)
                             candidates = enriched
                         logger.info(
-                            "%s[NOBITEX] Filters | regime=%s | %s | L2 checked=%d rejected=%d ask_depth_min=%.0f IRT of_min=%.1f",
-                            tag, regime, self.momentum_engine.stats_line(), depth_checked, depth_rejected, min_depth,
+                            "%s[NOBITEX] ENTRY GATES | regime=%s | %s | "
+                            "L2 checked=%d rejected=%d reasons=%s | ask_depth_min=%.0f IRT | "
+                            "order_flow_min=%.1f",
+                            tag, regime, self.momentum_engine.stats_line(),
+                            depth_checked, depth_rejected,
+                            dict(sorted(l2_reject_reasons.items(), key=lambda kv: kv[1], reverse=True)),
+                            min_depth,
                             float(getattr(cfg, "order_flow_min_score", 58.0) or 58.0),
                         )
+                        if not candidates:
+                            logger.info(
+                                "%s[PAPER/SCAN] NO EXECUTABLE CANDIDATE | "
+                                "The scanner did not find a market that passed all momentum gates.",
+                                tag,
+                            )
                 except Exception as exc:
                     logger.warning(
                         "%s[GLOBAL] Nobitex momentum data unavailable: %s",
