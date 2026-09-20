@@ -84,7 +84,7 @@
     "paper_half_spread_pct": 0.15,
     "cost_guard_enabled": true,
     "min_edge_multiple": 2.0,
-    "max_hold_minutes": 120,
+    "max_hold_minutes": 360,
     "expectancy_guard_enabled": true,
     "expectancy_guard_trades": 30,
     "expectancy_guard_min_expectancy_pct": 0.0,

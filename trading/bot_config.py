@@ -593,7 +593,14 @@ PROFITABILITY_GUARD_DEFAULTS: Dict[str, Any] = {
     "cost_guard_enabled": True,
     "min_edge_multiple": 2.0,
     "paper_half_spread_pct": 0.15,
-    "max_hold_minutes": 120,
+    # 6 hours.  The hold-time sensitivity in PROFITABILITY_ANALYSIS.md §11-6
+    # measured 120 / 360 / uncapped on 100 days x 18 markets: a 2-hour cap
+    # pre-empted the trailing stop on 62% of all swept trades (77% of the
+    # balanced geometry) and left 0 of 96 exit geometries with a positive
+    # return, while 6 hours caps the multi-day holds the time stop exists for
+    # and binds on ~10-38% of trades instead.  Neither is profitable; 360 is
+    # the one that still lets the exit geometry be what is measured.
+    "max_hold_minutes": 360,
     "expectancy_guard_enabled": True,
     "expectancy_guard_trades": 30,
     "expectancy_guard_min_expectancy_pct": 0.0,

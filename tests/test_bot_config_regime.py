@@ -197,3 +197,52 @@ def test_missing_auto_regime_keys_get_defaults(temp_config_dir):
     assert isinstance(cfg.regime_strategy_map, dict)
     assert cfg.regime_strategy_map["BALANCED"] == "balanced"
     assert "max_open_positions" in cfg.regime_controlled_keys
+
+# ══════════════════════════════════════════════════════════════
+# 4. v11 profitability-guard migration: defaults in, user values kept
+# ══════════════════════════════════════════════════════════════
+
+def test_v11_migration_fills_absent_guard_keys(temp_config_dir):
+    """A pre-v11 config with none of the guard keys adopts the shipped ones."""
+    _, config_path = temp_config_dir
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump({"exchange": "nobitex", "quote_currency": "IRT",
+                   "strategy_defaults_version": 10}, f)
+
+    cfg = load_config(config_path)
+    assert cfg.strategy_defaults_version == 11
+    for key, expected in bc.PROFITABILITY_GUARD_DEFAULTS.items():
+        if key == "strategy_defaults_version":
+            continue
+        assert getattr(cfg, key) == expected, key
+    assert cfg.max_hold_minutes == bc.PROFITABILITY_GUARD_DEFAULTS["max_hold_minutes"] > 0
+
+
+def test_v11_migration_never_overwrites_explicit_user_values(temp_config_dir):
+    """setdefault, not update: an operator's own choice survives the migration."""
+    _, config_path = temp_config_dir
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump({"exchange": "nobitex", "quote_currency": "IRT",
+                   "strategy_defaults_version": 10,
+                   "max_hold_minutes": 120,        # tighter than the default
+                   "cost_guard_enabled": False,    # deliberately off
+                   "min_edge_multiple": 3.5}, f)
+
+    cfg = load_config(config_path)
+    assert cfg.strategy_defaults_version == 11
+    assert cfg.max_hold_minutes == 120
+    assert cfg.cost_guard_enabled is False
+    assert cfg.min_edge_multiple == 3.5
+    # keys the operator never set still arrive from the migration
+    assert cfg.expectancy_guard_enabled is True
+
+
+def test_time_stop_can_be_disabled_explicitly_after_migration(temp_config_dir):
+    """max_hold_minutes = 0 means 'no time stop' and must not be re-defaulted."""
+    _, config_path = temp_config_dir
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump({"exchange": "nobitex", "quote_currency": "IRT",
+                   "strategy_defaults_version": 11, "max_hold_minutes": 0}, f)
+
+    cfg = load_config(config_path)
+    assert cfg.max_hold_minutes == 0

@@ -83,6 +83,10 @@ def offline_report(cfg) -> None:
     print(f"فاصلهٔ تریلینگ                    : {fmt_pct(geo['trailing_gap'])} "
           f"(فعال‌سازی {cfg.trailing_activation_pct}% − فاصله {cfg.trailing_distance_pct}%)")
     print(f"حد ضرر                            : {cfg.stop_loss_pct}%")
+    hold = int(getattr(cfg, "max_hold_minutes", 0) or 0)
+    print("توقف زمانی                        : "
+          + (f"{hold} دقیقه" if hold > 0
+             else "خاموش (پوزیشن می‌تواند روزها باز بماند)"))
     print(f"کم‌ترین حرکت لازم برای ورود       : {fmt_pct(geo['required_move'])} "
           f"({cfg.min_edge_multiple} × هزینه)")
     print(f"آستانهٔ سیگنال مشاهده‌شده          : {cfg.min_observed_move_pct}% / "
@@ -100,6 +104,12 @@ def offline_report(cfg) -> None:
             f"حرکت لازم ({fmt_pct(geo['required_move'])}) از آستانهٔ سیگنال "
             f"({fmt_pct(float(cfg.min_observed_move_pct))}) بیشتر است ⇒ سیگنال‌ها "
             f"همه رد می‌شوند."
+        )
+    if hold <= 0:
+        problems.append(
+            "توقف زمانی خاموش است (`max_hold_minutes = 0`) ⇒ در مطالعهٔ ۱۰۰ روزه، "
+            "پوزیشن‌های بی‌حرکت به‌طور میانگین ۱٫۲ تا ۲٫۱ روز باز ماندند و سرمایه "
+            "را قفل کردند. پروفایل آزمون ۳۶۰ دقیقه است (بند ۱۱-۶ تحلیل)."
         )
     if float(cfg.paper_half_spread_pct) <= 0 and str(cfg.execution_mode).lower() != "real":
         problems.append(
