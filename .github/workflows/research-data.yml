@@ -35,25 +35,33 @@ jobs:
 
       - name: Fetch market data (1m archives + 1s archives + Nobitex probe)
         run: |
-          python tools/research/fetch_market_data.py \
+          set -o pipefail
+          mkdir -p research_data
+          python -V
+          python -u tools/research/fetch_market_data.py \
             --out research_data --days 120 --tick-days "${{ github.event.inputs.tick_days || 2 }}" \
             --symbols "${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO' }}" \
-            --tick-symbols "BTC,ETH,SOL,XRP"
-          ls -la research_data | head -30
+            --tick-symbols "BTC,ETH,SOL,XRP" \
+            2>&1 | tee research_data/log_fetch.txt | tail -60 \
+            || echo "::error::fetch failed - see research_data/log_fetch.txt (published with the results)"
+          ls -la research_data | head -30 || true
 
       - name: Backtest - 10s bars (live cadence) + sweep
+        continue-on-error: true
         run: |
           python tools/research/profitability_backtest.py \
             --data-dir research_data --bars 10s --sweep \
             --json-out research_data/results_10s.json 2>&1 | tee research_data/log_10s.txt | tail -60
 
       - name: Backtest - 1m bars, full basket
+        continue-on-error: true
         run: |
           python tools/research/profitability_backtest.py \
             --data-dir research_data --bars 1m \
             --json-out research_data/results_1m.json 2>&1 | tee research_data/log_1m.txt | tail -60
 
       - name: Backtest - 1m sweep on liquid subset
+        continue-on-error: true
         run: |
           python tools/research/profitability_backtest.py \
             --data-dir research_data --bars 1m --sweep \
@@ -66,7 +74,7 @@ jobs:
           git config user.email "research-bot@users.noreply.github.com"
           mkdir -p research_results
           cp research_data/results_*.json research_data/log_*.txt research_data/fetch_report.json research_results/ 2>/dev/null || true
-          python tools/research/trim_results.py
+          python tools/research/trim_results.py || true
           du -sh research_results
           git add -f research_results
           git commit -m "chore(research): profitability study results [skip ci]" || echo "nothing to commit"
