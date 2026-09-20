@@ -3,11 +3,119 @@
   [vision] BTCUSDT 1m month 2026-07: 44640 rows
   [vision] BTCUSDT 1m month 2026-08: 44640 rows
   [vision] BTCUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
-Traceback (most recent call last):
-  File "/home/runner/work/NobitexAgentWin/NobitexAgentWin/tools/research/fetch_market_data.py", line 341, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/home/runner/work/NobitexAgentWin/NobitexAgentWin/tools/research/fetch_market_data.py", line 311, in main
-    f"{datetime.fromtimestamp(rows[0][0], timezone.utc):%Y-%m-%d} -> "
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: year 58299 is out of range
+[BTC] 1m bars=145100 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] BTCUSDT 1s day 2026-09-18: 86400 rows
+  [vision] BTCUSDT 1s day 2026-09-19: 86400 rows
+[BTC] 10s bars=17280
+  [vision] ETHUSDT 1m month 2026-05: 44640 rows
+  [vision] ETHUSDT 1m month 2026-06: 43200 rows
+  [vision] ETHUSDT 1m month 2026-07: 44640 rows
+  [vision] ETHUSDT 1m month 2026-08: 44640 rows
+  [vision] ETHUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/ETHUSDT/1m/ETHUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[ETH] 1m bars=145100 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] ETHUSDT 1s day 2026-09-18: 86400 rows
+  [vision] ETHUSDT 1s day 2026-09-19: 86400 rows
+[ETH] 10s bars=17280
+  [vision] SOLUSDT 1m month 2026-05: 44640 rows
+  [vision] SOLUSDT 1m month 2026-06: 43200 rows
+  [vision] SOLUSDT 1m month 2026-07: 44640 rows
+  [vision] SOLUSDT 1m month 2026-08: 44640 rows
+  [vision] SOLUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/SOLUSDT/1m/SOLUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[SOL] 1m bars=145099 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] SOLUSDT 1s day 2026-09-18: 86400 rows
+  [vision] SOLUSDT 1s day 2026-09-19: 86400 rows
+[SOL] 10s bars=17280
+  [vision] XRPUSDT 1m month 2026-05: 44640 rows
+  [vision] XRPUSDT 1m month 2026-06: 43200 rows
+  [vision] XRPUSDT 1m month 2026-07: 44640 rows
+  [vision] XRPUSDT 1m month 2026-08: 44640 rows
+  [vision] XRPUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/XRPUSDT/1m/XRPUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[XRP] 1m bars=145099 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] XRPUSDT 1s day 2026-09-18: 86400 rows
+  [vision] XRPUSDT 1s day 2026-09-19: 86400 rows
+[XRP] 10s bars=17280
+  [vision] DOGEUSDT 1m month 2026-05: 44640 rows
+  [vision] DOGEUSDT 1m month 2026-06: 43200 rows
+  [vision] DOGEUSDT 1m month 2026-07: 44640 rows
+  [vision] DOGEUSDT 1m month 2026-08: 44640 rows
+  [vision] DOGEUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/DOGEUSDT/1m/DOGEUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[DOGE] 1m bars=145099 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] ADAUSDT 1m month 2026-05: 44640 rows
+  [vision] ADAUSDT 1m month 2026-06: 43200 rows
+  [vision] ADAUSDT 1m month 2026-07: 44640 rows
+  [vision] ADAUSDT 1m month 2026-08: 44640 rows
+  [vision] ADAUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/ADAUSDT/1m/ADAUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[ADA] 1m bars=145099 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] AVAXUSDT 1m month 2026-05: 44640 rows
+  [vision] AVAXUSDT 1m month 2026-06: 43200 rows
+  [vision] AVAXUSDT 1m month 2026-07: 44640 rows
+  [vision] AVAXUSDT 1m month 2026-08: 44640 rows
+  [vision] AVAXUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/AVAXUSDT/1m/AVAXUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[AVAX] 1m bars=145098 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] LINKUSDT 1m month 2026-05: 44640 rows
+  [vision] LINKUSDT 1m month 2026-06: 43200 rows
+  [vision] LINKUSDT 1m month 2026-07: 44640 rows
+  [vision] LINKUSDT 1m month 2026-08: 44640 rows
+  [vision] LINKUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/LINKUSDT/1m/LINKUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[LINK] 1m bars=145098 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] DOTUSDT 1m month 2026-05: 44640 rows
+  [vision] DOTUSDT 1m month 2026-06: 43200 rows
+  [vision] DOTUSDT 1m month 2026-07: 44640 rows
+  [vision] DOTUSDT 1m month 2026-08: 44640 rows
+  [vision] DOTUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/DOTUSDT/1m/DOTUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[DOT] 1m bars=145098 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] LTCUSDT 1m month 2026-05: 44640 rows
+  [vision] LTCUSDT 1m month 2026-06: 43200 rows
+  [vision] LTCUSDT 1m month 2026-07: 44640 rows
+  [vision] LTCUSDT 1m month 2026-08: 44640 rows
+  [vision] LTCUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/LTCUSDT/1m/LTCUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[LTC] 1m bars=145098 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] BCHUSDT 1m month 2026-05: 44640 rows
+  [vision] BCHUSDT 1m month 2026-06: 43200 rows
+  [vision] BCHUSDT 1m month 2026-07: 44640 rows
+  [vision] BCHUSDT 1m month 2026-08: 44640 rows
+  [vision] BCHUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/BCHUSDT/1m/BCHUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[BCH] 1m bars=145097 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] TRXUSDT 1m month 2026-05: 44640 rows
+  [vision] TRXUSDT 1m month 2026-06: 43200 rows
+  [vision] TRXUSDT 1m month 2026-07: 44640 rows
+  [vision] TRXUSDT 1m month 2026-08: 44640 rows
+  [vision] TRXUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/TRXUSDT/1m/TRXUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[TRX] 1m bars=145097 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] ATOMUSDT 1m month 2026-05: 44640 rows
+  [vision] ATOMUSDT 1m month 2026-06: 43200 rows
+  [vision] ATOMUSDT 1m month 2026-07: 44640 rows
+  [vision] ATOMUSDT 1m month 2026-08: 44640 rows
+  [vision] ATOMUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/ATOMUSDT/1m/ATOMUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[ATOM] 1m bars=145097 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] NEARUSDT 1m month 2026-05: 44640 rows
+  [vision] NEARUSDT 1m month 2026-06: 43200 rows
+  [vision] NEARUSDT 1m month 2026-07: 44640 rows
+  [vision] NEARUSDT 1m month 2026-08: 44640 rows
+  [vision] NEARUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/NEARUSDT/1m/NEARUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[NEAR] 1m bars=145097 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] FILUSDT 1m month 2026-05: 44640 rows
+  [vision] FILUSDT 1m month 2026-06: 43200 rows
+  [vision] FILUSDT 1m month 2026-07: 44640 rows
+  [vision] FILUSDT 1m month 2026-08: 44640 rows
+  [vision] FILUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/FILUSDT/1m/FILUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[FIL] 1m bars=145097 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] UNIUSDT 1m month 2026-05: 44640 rows
+  [vision] UNIUSDT 1m month 2026-06: 43200 rows
+  [vision] UNIUSDT 1m month 2026-07: 44640 rows
+  [vision] UNIUSDT 1m month 2026-08: 44640 rows
+  [vision] UNIUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/UNIUSDT/1m/UNIUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[UNI] 1m bars=145096 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] AAVEUSDT 1m month 2026-05: 44640 rows
+  [vision] AAVEUSDT 1m month 2026-06: 43200 rows
+  [vision] AAVEUSDT 1m month 2026-07: 44640 rows
+  [vision] AAVEUSDT 1m month 2026-08: 44640 rows
+  [vision] AAVEUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/AAVEUSDT/1m/AAVEUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[AAVE] 1m bars=145096 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+  [vision] ALGOUSDT 1m month 2026-05: 44640 rows
+  [vision] ALGOUSDT 1m month 2026-06: 43200 rows
+  [vision] ALGOUSDT 1m month 2026-07: 44640 rows
+  [vision] ALGOUSDT 1m month 2026-08: 44640 rows
+  [vision] ALGOUSDT 1m month 2026-09 unavailable (GET failed https://data.binance.vision/data/spot/monthly/klines/ALGOUSDT/1m/ALGOUSDT-1m-2026-09.zip: HTTP Error 404: Not Found)
+[ALGO] 1m bars=145096 via binance_vision_monthly 2026-05-23 -> 2026-08-31
+[nobitex] reachable=False

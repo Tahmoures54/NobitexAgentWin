@@ -1,36 +1,53 @@
 == loading 1m bars from research_data
-  loaded BTC: 177120 bars (1m)
-  filtered to ['BTC']
+  loaded AAVE: 145096 bars (1m)
+  loaded ADA: 145099 bars (1m)
+  loaded ALGO: 145096 bars (1m)
+  loaded ATOM: 145097 bars (1m)
+  loaded AVAX: 145098 bars (1m)
+  loaded BCH: 145097 bars (1m)
+  loaded BTC: 145100 bars (1m)
+  loaded DOGE: 145099 bars (1m)
+  loaded DOT: 145098 bars (1m)
+  loaded ETH: 145100 bars (1m)
+  loaded FIL: 145097 bars (1m)
+  loaded LINK: 145098 bars (1m)
+  loaded LTC: 145098 bars (1m)
+  loaded NEAR: 145097 bars (1m)
+  loaded SOL: 145099 bars (1m)
+  loaded TRX: 145097 bars (1m)
+  loaded UNI: 145096 bars (1m)
+  loaded XRP: 145099 bars (1m)
+  filtered to ['ADA', 'BTC', 'DOGE', 'ETH', 'SOL', 'XRP']
 
-== file_defaults: trades=4 win=25.0 expectancy=-1.1146% return=-0.745% dd=1.657% pf=0.384 halted=False
+== file_defaults: trades=46 win=56.52 expectancy=-0.5429% return=-4.211% dd=5.439% pf=0.556 halted=False
 
-== balanced_preset: trades=22 win=50.0 expectancy=-0.0179% return=-0.294% dd=7.777% pf=0.969 halted=False
+== balanced_preset: trades=14 win=21.43 expectancy=-0.1564% return=0.153% dd=10.075% pf=1.018 halted=True
 
-== conservative_preset: trades=6 win=50.0 expectancy=-0.9613% return=-1.151% dd=1.357% pf=0.243 halted=False
+== conservative_preset: trades=85 win=50.59 expectancy=-0.4815% return=-7.386% dd=8.532% pf=0.556 halted=False
 
-== file_defaults_zero_cost: trades=3 win=66.67 expectancy=0.374% return=0.184% dd=0.996% pf=1.368 halted=False
+== file_defaults_zero_cost: trades=46 win=67.39 expectancy=0.0466% return=0.057% dd=2.37% pf=1.008 halted=False
 
-== balanced_preset_zero_cost: trades=23 win=52.17 expectancy=0.4548% return=2.452% dd=5.725% pf=1.302 halted=False
+== balanced_preset_zero_cost: trades=19 win=26.32 expectancy=-1.1262% return=-4.256% dd=10.064% pf=0.532 halted=True
 
-== balanced_preset_paper_stops: trades=22 win=50.0 expectancy=-0.0179% return=-0.294% dd=7.777% pf=0.969 halted=False
+== balanced_preset_paper_stops: trades=14 win=14.29 expectancy=-2.7353% return=-8.251% dd=10.186% pf=0.112 halted=True
 
-== random_entries (rate=0.000000): trades=0 win=None expectancy=0.0% return=0.0%
+== random_entries (rate=2.642e-05, target~46): trades=33 win=45.45 expectancy=-1.1492% return=-5.927%
 
-== buy & hold: {'BTC': {'return_pct': 2.88, 'max_drawdown_pct': 30.12}}
+== buy & hold: {'ADA': {'return_pct': -18.23, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.08, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.42, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.6, 'max_drawdown_pct': 28.07}}
 
-== forward study: events=9
-   h1m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
-   h5m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
-   h15m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
-   h30m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
-   h60m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
+== forward study: events=241
+   h1m: {'mean_pct': -0.0329, 'median_pct': -0.0481, 'pct_positive': 43.57, 'mean_mfe_pct': 0.3708, 'mean_mae_pct': -0.4177, 'prob_mfe_ge_stop_before_mae': 3.73}
+   h5m: {'mean_pct': -0.2002, 'median_pct': -0.1415, 'pct_positive': 37.76, 'mean_mfe_pct': 0.6159, 'mean_mae_pct': -0.8568, 'prob_mfe_ge_stop_before_mae': 4.98}
+   h15m: {'mean_pct': -0.1122, 'median_pct': -0.1122, 'pct_positive': 46.89, 'mean_mfe_pct': 0.9825, 'mean_mae_pct': -1.2079, 'prob_mfe_ge_stop_before_mae': 18.67}
+   h30m: {'mean_pct': -0.0745, 'median_pct': 0.0613, 'pct_positive': 51.45, 'mean_mfe_pct': 1.3218, 'mean_mae_pct': -1.6749, 'prob_mfe_ge_stop_before_mae': 29.88}
+   h60m: {'mean_pct': -0.0493, 'median_pct': 0.3187, 'pct_positive': 59.75, 'mean_mfe_pct': 1.7113, 'mean_mae_pct': -2.3427, 'prob_mfe_ge_stop_before_mae': 41.08}
 
 == sweep best by expectancy:
-   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 54, 'win_rate': 59.26, 'expectancy_pct': -0.4025, 'return_pct': -4.291, 'max_dd_pct': 6.041}
-   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 2.0, 'trades': 50, 'win_rate': 56.0, 'expectancy_pct': -0.43, 'return_pct': -4.238, 'max_dd_pct': 6.452}
-   {'threshold': 0.5, 'lookback': 4, 'trail': 1.2, 'stop': 2.0, 'trades': 74, 'win_rate': 51.35, 'expectancy_pct': -0.5629, 'return_pct': -8.045, 'max_dd_pct': 10.555}
-   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 3.0, 'trades': 48, 'win_rate': 62.5, 'expectancy_pct': -0.5806, 'return_pct': -4.569, 'max_dd_pct': 7.01}
-   {'threshold': 0.5, 'lookback': 4, 'trail': 0.6, 'stop': 2.0, 'trades': 81, 'win_rate': 53.09, 'expectancy_pct': -0.5941, 'return_pct': -9.236, 'max_dd_pct': 11.963}
-   positive cells (>=20 trades): 0/16
+   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 3.0, 'trades': 56, 'win_rate': 44.64, 'expectancy_pct': 0.5059, 'return_pct': 3.728, 'max_dd_pct': 12.035}
+   {'threshold': 1.5, 'lookback': 2, 'trail': 0.6, 'stop': 3.0, 'trades': 23, 'win_rate': 82.61, 'expectancy_pct': 0.3503, 'return_pct': 1.201, 'max_dd_pct': 2.734}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 67, 'win_rate': 43.28, 'expectancy_pct': 0.1698, 'return_pct': 1.859, 'max_dd_pct': 12.023}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 3.0, 'trades': 56, 'win_rate': 51.79, 'expectancy_pct': 0.1457, 'return_pct': 0.749, 'max_dd_pct': 12.088}
+   {'threshold': 1.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 23, 'win_rate': 73.91, 'expectancy_pct': 0.1064, 'return_pct': 0.45, 'max_dd_pct': 2.302}
+   positive cells (>=20 trades): 6/16
 
 wrote research_data/results_1m_sweep.json
