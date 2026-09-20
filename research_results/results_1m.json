@@ -21,28 +21,28 @@
   "XRP"
  ],
  "bars_loaded": {
-  "AAVE": 145078,
-  "ADA": 145080,
-  "ALGO": 145078,
-  "ATOM": 145079,
-  "AVAX": 145080,
-  "BCH": 145079,
-  "BTC": 145083,
-  "DOGE": 145081,
-  "DOT": 145080,
-  "ETH": 145082,
-  "FIL": 145079,
-  "LINK": 145080,
-  "LTC": 145080,
-  "NEAR": 145079,
-  "SOL": 145082,
-  "TRX": 145079,
-  "UNI": 145078,
-  "XRP": 145081
+  "AAVE": 145066,
+  "ADA": 145069,
+  "ALGO": 145066,
+  "ATOM": 145067,
+  "AVAX": 145068,
+  "BCH": 145068,
+  "BTC": 145071,
+  "DOGE": 145069,
+  "DOT": 145068,
+  "ETH": 145070,
+  "FIL": 145067,
+  "LINK": 145068,
+  "LTC": 145068,
+  "NEAR": 145067,
+  "SOL": 145070,
+  "TRX": 145067,
+  "UNI": 145067,
+  "XRP": 145069
  },
  "file_defaults": {
   "label": "file_defaults",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 102,
   "trades_per_day": 1.01,
   "signals": 102,
@@ -78,7 +78,7 @@
  },
  "balanced_preset": {
   "label": "balanced_preset",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 41,
   "trades_per_day": 0.41,
   "signals": 151,
@@ -114,7 +114,7 @@
  },
  "conservative_preset": {
   "label": "conservative_preset",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 92,
   "trades_per_day": 0.91,
   "signals": 140,
@@ -151,7 +151,7 @@
  },
  "file_defaults_zero_cost": {
   "label": "file_defaults_zero_cost",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 175,
   "trades_per_day": 1.74,
   "signals": 175,
@@ -187,7 +187,7 @@
  },
  "balanced_preset_zero_cost": {
   "label": "balanced_preset_zero_cost",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 100,
   "trades_per_day": 0.99,
   "signals": 989,
@@ -223,7 +223,7 @@
  },
  "balanced_preset_paper_stops": {
   "label": "balanced_preset_paper_stops",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 39,
   "trades_per_day": 0.39,
   "signals": 149,
@@ -259,7 +259,7 @@
  },
  "file_defaults_no_trailing": {
   "label": "file_defaults_no_trailing",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 17,
   "trades_per_day": 0.17,
   "signals": 17,
@@ -294,7 +294,7 @@
  },
  "balanced_preset_no_trailing": {
   "label": "balanced_preset_no_trailing",
-  "window_days": 100.75,
+  "window_days": 100.74,
   "trades": 10,
   "trades_per_day": 0.1,
   "signals": 133,
@@ -329,95 +329,94 @@
  },
  "random_entries": {
   "label": "random_entries",
-  "window_days": 100.75,
-  "trades": 61,
-  "trades_per_day": 0.61,
-  "signals": 61,
-  "win_rate_pct": 54.1,
-  "avg_win_pct": 1.356,
-  "avg_loss_pct": -2.4754,
-  "expectancy_pct": -0.4027,
-  "expectancy_quote": -6402.75,
-  "profit_factor": 0.633,
-  "net_pnl_quote": -390568.0,
-  "return_pct": -3.906,
-  "final_equity": 9609432.03,
-  "max_drawdown_pct": 6.958,
-  "costs_quote": 833742.06,
+  "window_days": 100.74,
+  "trades": 58,
+  "trades_per_day": 0.58,
+  "signals": 58,
+  "win_rate_pct": 48.28,
+  "avg_win_pct": 2.1977,
+  "avg_loss_pct": -2.9716,
+  "expectancy_pct": -0.4761,
+  "expectancy_quote": -7189.38,
+  "profit_factor": 0.688,
+  "net_pnl_quote": -416984.26,
+  "return_pct": -4.17,
+  "final_equity": 9583015.73,
+  "max_drawdown_pct": 5.666,
+  "costs_quote": 788565.39,
   "exits": {
-   "Open at end": 1,
-   "Stop Loss": 19,
-   "Trailing Stop": 41
+   "Stop Loss": 25,
+   "Trailing Stop": 33
   },
   "blocked": {
-   "max_open": 290111,
+   "max_open": 356602,
    "exposure": 0,
-   "cooldown": 840,
+   "cooldown": 890,
    "extended": 0,
-   "duplicate": 80380,
+   "duplicate": 94732,
    "min_notional": 0,
    "halted": 0,
    "no_cash": 0
   },
   "halted": false,
-  "open_at_end": 1,
-  "avg_hold_min": 1318.7
+  "open_at_end": 0,
+  "avg_hold_min": 1634.3
  },
  "buy_and_hold": {
   "AAVE": {
-   "return_pct": 45.18,
+   "return_pct": 45.25,
    "max_drawdown_pct": 34.88
   },
   "ADA": {
-   "return_pct": -18.3,
+   "return_pct": -18.26,
    "max_drawdown_pct": 44.64
   },
   "ALGO": {
-   "return_pct": -23.02,
+   "return_pct": -23.09,
    "max_drawdown_pct": 45.62
   },
   "ATOM": {
-   "return_pct": -29.09,
+   "return_pct": -29.33,
    "max_drawdown_pct": 47.1
   },
   "AVAX": {
-   "return_pct": -20.92,
+   "return_pct": -20.8,
    "max_drawdown_pct": 40.56
   },
   "BCH": {
-   "return_pct": -31.6,
+   "return_pct": -31.58,
    "max_drawdown_pct": 49.97
   },
   "BTC": {
-   "return_pct": 4.12,
+   "return_pct": 4.08,
    "max_drawdown_pct": 25.83
   },
   "DOGE": {
-   "return_pct": -18.16,
+   "return_pct": -17.99,
    "max_drawdown_pct": 35.2
   },
   "DOT": {
-   "return_pct": -32.58,
+   "return_pct": -32.64,
    "max_drawdown_pct": 45.54
   },
   "ETH": {
-   "return_pct": 19.51,
+   "return_pct": 19.52,
    "max_drawdown_pct": 29.56
   },
   "FIL": {
-   "return_pct": -29.2,
+   "return_pct": -29.13,
    "max_drawdown_pct": 44.15
   },
   "LINK": {
-   "return_pct": 21.2,
+   "return_pct": 21.25,
    "max_drawdown_pct": 28.23
   },
   "LTC": {
-   "return_pct": -7.94,
+   "return_pct": -7.91,
    "max_drawdown_pct": 27.38
   },
   "NEAR": {
-   "return_pct": -7.51,
+   "return_pct": -7.28,
    "max_drawdown_pct": 49.94
   },
   "SOL": {
@@ -433,7 +432,7 @@
    "max_drawdown_pct": 34.71
   },
   "XRP": {
-   "return_pct": 3.64,
+   "return_pct": 3.53,
    "max_drawdown_pct": 28.07
   }
  },

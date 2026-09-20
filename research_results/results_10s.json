@@ -607,5 +607,137 @@
    "exits": {}
   }
  ],
- "sweep_positive_cells": []
+ "sweep_positive_cells": [],
+ "sweep_out_of_sample": [
+  {
+   "cell": {
+    "threshold": 0.8,
+    "lookback": 6,
+    "trail_activation": 3.0,
+    "trail_distance": 2.0,
+    "stop": 3.0
+   },
+   "full_window": {
+    "trades": 5,
+    "expectancy_pct": 2.5022
+   },
+   "half1": {
+    "trades": 5,
+    "expectancy_pct": -2.1047,
+    "return_pct": -1.756,
+    "halted": false
+   },
+   "half2": {
+    "trades": 2,
+    "expectancy_pct": 4.9342,
+    "return_pct": 1.347,
+    "halted": false
+   },
+   "both_halves_positive": false
+  },
+  {
+   "cell": {
+    "threshold": 0.8,
+    "lookback": 4,
+    "trail_activation": 3.0,
+    "trail_distance": 2.0,
+    "stop": 3.0
+   },
+   "full_window": {
+    "trades": 4,
+    "expectancy_pct": 1.8847
+   },
+   "half1": {
+    "trades": 3,
+    "expectancy_pct": -2.4436,
+    "return_pct": -1.218,
+    "halted": false
+   },
+   "half2": {
+    "trades": 1,
+    "expectancy_pct": 6.1981,
+    "return_pct": 1.033,
+    "halted": false
+   },
+   "both_halves_positive": false
+  },
+  {
+   "cell": {
+    "threshold": 0.8,
+    "lookback": 4,
+    "trail_activation": 1.5,
+    "trail_distance": 0.6,
+    "stop": 3.0
+   },
+   "full_window": {
+    "trades": 4,
+    "expectancy_pct": -0.3797
+   },
+   "half1": {
+    "trades": 3,
+    "expectancy_pct": -1.1483,
+    "return_pct": -0.574,
+    "halted": false
+   },
+   "half2": {
+    "trades": 1,
+    "expectancy_pct": 1.2264,
+    "return_pct": 0.204,
+    "halted": false
+   },
+   "both_halves_positive": false
+  },
+  {
+   "cell": {
+    "threshold": 0.8,
+    "lookback": 6,
+    "trail_activation": 1.5,
+    "trail_distance": 0.6,
+    "stop": 3.0
+   },
+   "full_window": {
+    "trades": 8,
+    "expectancy_pct": -0.5035
+   },
+   "half1": {
+    "trades": 5,
+    "expectancy_pct": -1.3298,
+    "return_pct": -1.117,
+    "halted": false
+   },
+   "half2": {
+    "trades": 4,
+    "expectancy_pct": 0.6178,
+    "return_pct": 0.394,
+    "halted": false
+   },
+   "both_halves_positive": false
+  },
+  {
+   "cell": {
+    "threshold": 0.8,
+    "lookback": 4,
+    "trail_activation": 1.5,
+    "trail_distance": 1.2,
+    "stop": 3.0
+   },
+   "full_window": {
+    "trades": 4,
+    "expectancy_pct": -0.5778
+   },
+   "half1": {
+    "trades": 3,
+    "expectancy_pct": -1.3507,
+    "return_pct": -0.675,
+    "halted": false
+   },
+   "half2": {
+    "trades": 1,
+    "expectancy_pct": 0.6138,
+    "return_pct": 0.102,
+    "halted": false
+   },
+   "both_halves_positive": false
+  }
+ ]
 }

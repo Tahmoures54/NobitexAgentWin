@@ -34,4 +34,26 @@
    threshold=0.8, lookback=4, trail_activation=1.5, trail_distance=1.2, stop=3.0, trades=4, win_rate=50.0, expectancy_pct=-0.5778, return_pct=-0.407, max_dd_pct=1.479, avg_hold_min=765.5
    positive cells (>=20 trades): 0/16
 
+-- out-of-sample check {'threshold': 0.8, 'lookback': 6, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
+   half1: trades=5 expectancy=-2.1047% return=-1.756% halted=False
+   half2: trades=2 expectancy=4.9342% return=1.347% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 4, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
+   half1: trades=3 expectancy=-2.4436% return=-1.218% halted=False
+   half2: trades=1 expectancy=6.1981% return=1.033% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 4, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 3.0}
+   half1: trades=3 expectancy=-1.1483% return=-0.574% halted=False
+   half2: trades=1 expectancy=1.2264% return=0.204% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 6, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 3.0}
+   half1: trades=5 expectancy=-1.3298% return=-1.117% halted=False
+   half2: trades=4 expectancy=0.6178% return=0.394% halted=False
+
+-- out-of-sample check {'threshold': 0.8, 'lookback': 4, 'trail_activation': 1.5, 'trail_distance': 1.2, 'stop': 3.0}
+   half1: trades=3 expectancy=-1.3507% return=-0.675% halted=False
+   half2: trades=1 expectancy=0.6138% return=0.102% halted=False
+
+   cells positive in BOTH halves: 0/5
+
 wrote research_data/results_10s.json
