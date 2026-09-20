@@ -1,22 +1,22 @@
 == loading 1m bars from research_data
-  loaded AAVE: 145026 bars (1m)
-  loaded ADA: 145028 bars (1m)
-  loaded ALGO: 145026 bars (1m)
-  loaded ATOM: 145027 bars (1m)
-  loaded AVAX: 145028 bars (1m)
-  loaded BCH: 145027 bars (1m)
-  loaded BTC: 145031 bars (1m)
-  loaded DOGE: 145029 bars (1m)
-  loaded DOT: 145028 bars (1m)
-  loaded ETH: 145030 bars (1m)
-  loaded FIL: 145026 bars (1m)
-  loaded LINK: 145028 bars (1m)
-  loaded LTC: 145028 bars (1m)
-  loaded NEAR: 145027 bars (1m)
-  loaded SOL: 145030 bars (1m)
-  loaded TRX: 145027 bars (1m)
-  loaded UNI: 145026 bars (1m)
-  loaded XRP: 145029 bars (1m)
+  loaded AAVE: 145012 bars (1m)
+  loaded ADA: 145014 bars (1m)
+  loaded ALGO: 145011 bars (1m)
+  loaded ATOM: 145012 bars (1m)
+  loaded AVAX: 145014 bars (1m)
+  loaded BCH: 145013 bars (1m)
+  loaded BTC: 145016 bars (1m)
+  loaded DOGE: 145014 bars (1m)
+  loaded DOT: 145013 bars (1m)
+  loaded ETH: 145015 bars (1m)
+  loaded FIL: 145012 bars (1m)
+  loaded LINK: 145013 bars (1m)
+  loaded LTC: 145013 bars (1m)
+  loaded NEAR: 145012 bars (1m)
+  loaded SOL: 145015 bars (1m)
+  loaded TRX: 145013 bars (1m)
+  loaded UNI: 145012 bars (1m)
+  loaded XRP: 145014 bars (1m)
   filtered to ['ADA', 'BTC', 'DOGE', 'ETH', 'SOL', 'XRP']
 
 == file_defaults: trades=46 win=56.52 expectancy=-0.5429% return=-4.211% dd=5.439% pf=0.556 halted=False
@@ -35,9 +35,9 @@
 
 == balanced_preset_no_trailing: trades=11 win=0.0 expectancy=-3.4616% return=-8.204% dd=10.006% pf=0.0 halted=True
 
-== random_entries (rate=2.643e-05, target~46): trades=32 win=50.0 expectancy=-0.9601% return=-4.495%
+== random_entries (rate=2.644e-05, target~46): trades=32 win=40.62 expectancy=-1.0233% return=-4.876%
 
-== buy & hold: {'ADA': {'return_pct': -18.16, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.22, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.58, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.68, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.34, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.46, 'max_drawdown_pct': 28.07}}
+== buy & hold: {'ADA': {'return_pct': -18.1, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.26, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.81, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.82, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.41, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.69, 'max_drawdown_pct': 28.07}}
 
 == forward study: events=241
    h1m: {'mean_pct': -0.0329, 'median_pct': -0.0481, 'pct_positive': 43.57, 'mean_mfe_pct': 0.3708, 'mean_mae_pct': -0.4177, 'prob_mfe_ge_stop_before_mae': 3.73}

@@ -17,25 +17,25 @@
   loaded TRX: 145013 bars (1m)
   loaded UNI: 145012 bars (1m)
   loaded XRP: 145014 bars (1m)
-== applying a 120-minute time stop to every arm
+== applying a 360-minute time stop to every arm
 
-== file_defaults: trades=94 win=39.36 expectancy=-0.8082% return=-11.525% dd=12.047% pf=0.393 halted=True
+== file_defaults: trades=104 win=43.27 expectancy=-0.7426% return=-11.334% dd=12.003% pf=0.446 halted=True
 
-== balanced_preset: trades=60 win=31.67 expectancy=-0.5256% return=-7.161% dd=10.036% pf=0.487 halted=True
+== balanced_preset: trades=53 win=45.28 expectancy=-0.4619% return=-5.259% dd=10.039% pf=0.672 halted=True
 
-== conservative_preset: trades=62 win=35.48 expectancy=-0.9708% return=-10.894% dd=12.033% pf=0.297 halted=True
+== conservative_preset: trades=93 win=46.24 expectancy=-0.6375% return=-11.359% dd=12.051% pf=0.448 halted=True
 
-== file_defaults_zero_cost: trades=234 win=49.57 expectancy=-0.1865% return=-7.289% dd=8.688% pf=0.784 halted=False
+== file_defaults_zero_cost: trades=219 win=56.16 expectancy=-0.1652% return=-6.308% dd=9.674% pf=0.83 halted=False
 
-== balanced_preset_zero_cost: trades=88 win=44.32 expectancy=-0.1358% return=-2.263% dd=10.029% pf=0.859 halted=True
+== balanced_preset_zero_cost: trades=128 win=48.44 expectancy=-0.1025% return=-2.39% dd=10.054% pf=0.934 halted=True
 
-== balanced_preset_paper_stops: trades=60 win=31.67 expectancy=-0.5387% return=-7.193% dd=10.136% pf=0.481 halted=True
+== balanced_preset_paper_stops: trades=52 win=44.23 expectancy=-0.498% return=-5.232% dd=10.014% pf=0.673 halted=True
 
-== file_defaults_no_trailing: trades=92 win=38.04 expectancy=-0.7334% return=-10.84% dd=12.003% pf=0.479 halted=True
+== file_defaults_no_trailing: trades=53 win=20.75 expectancy=-1.3408% return=-10.61% dd=12.094% pf=0.393 halted=True
 
-== balanced_preset_no_trailing: trades=58 win=31.03 expectancy=-0.4582% return=-5.969% dd=10.009% pf=0.549 halted=True
+== balanced_preset_no_trailing: trades=46 win=41.3 expectancy=-0.4289% return=-4.168% dd=10.085% pf=0.723 halted=True
 
-== random_entries (rate=9.936e-05, target~94): trades=109 win=17.43 expectancy=-0.7287% return=-12.02%
+== random_entries (rate=9.379e-05, target~104): trades=75 win=29.33 expectancy=-0.9937% return=-11.045%
 
 == buy & hold: {'AAVE': {'return_pct': 45.76, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.1, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -22.88, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.09, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.53, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.56, 'max_drawdown_pct': 49.94}, 'BTC': {'return_pct': 4.26, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.81, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.26, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.82, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -28.91, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.77, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.68, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -6.61, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.41, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.02, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 56.32, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.69, 'max_drawdown_pct': 28.07}}
 
@@ -46,4 +46,4 @@
    h30m: {'mean_pct': -0.0602, 'median_pct': -0.0953, 'pct_positive': 47.52, 'mean_mfe_pct': 1.1984, 'mean_mae_pct': -1.328, 'prob_mfe_ge_stop_before_mae': 29.97}
    h60m: {'mean_pct': 0.0423, 'median_pct': 0.1183, 'pct_positive': 52.23, 'mean_mfe_pct': 1.5912, 'mean_mae_pct': -1.6908, 'prob_mfe_ge_stop_before_mae': 42.64}
 
-wrote research_data/results_1m_t120.json
+wrote research_data/results_1m_t360.json

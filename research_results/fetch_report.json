@@ -1,15 +1,15 @@
 {
- "generated_at": "2026-09-20T06:48:44.772390+00:00",
+ "generated_at": "2026-09-20T07:03:40.617315+00:00",
  "days": 120,
  "tick_days": 7,
  "symbols": {
   "BTC": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145031"
+    "binance_vision_monthly": "ok rows=145016"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145031,
-   "first_bar": 1779518940,
+   "rows_1m": 145016,
+   "first_bar": 1779519840,
    "last_bar": 1788220740,
    "path": "ohlc_1m_BTC.csv.gz",
    "rows_10s": 60480,
@@ -18,11 +18,11 @@
   },
   "ETH": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145030"
+    "binance_vision_monthly": "ok rows=145015"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145030,
-   "first_bar": 1779519000,
+   "rows_1m": 145015,
+   "first_bar": 1779519900,
    "last_bar": 1788220740,
    "path": "ohlc_1m_ETH.csv.gz",
    "rows_10s": 60480,
@@ -31,11 +31,11 @@
   },
   "SOL": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145030"
+    "binance_vision_monthly": "ok rows=145015"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145030,
-   "first_bar": 1779519000,
+   "rows_1m": 145015,
+   "first_bar": 1779519900,
    "last_bar": 1788220740,
    "path": "ohlc_1m_SOL.csv.gz",
    "rows_10s": 60480,
@@ -44,11 +44,11 @@
   },
   "XRP": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145029"
+    "binance_vision_monthly": "ok rows=145014"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145029,
-   "first_bar": 1779519060,
+   "rows_1m": 145014,
+   "first_bar": 1779519960,
    "last_bar": 1788220740,
    "path": "ohlc_1m_XRP.csv.gz",
    "rows_10s": 60480,
@@ -57,141 +57,141 @@
   },
   "DOGE": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145029"
+    "binance_vision_monthly": "ok rows=145014"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145029,
-   "first_bar": 1779519060,
+   "rows_1m": 145014,
+   "first_bar": 1779519960,
    "last_bar": 1788220740,
    "path": "ohlc_1m_DOGE.csv.gz"
   },
   "ADA": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145028"
+    "binance_vision_monthly": "ok rows=145014"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145028,
-   "first_bar": 1779519120,
+   "rows_1m": 145014,
+   "first_bar": 1779519960,
    "last_bar": 1788220740,
    "path": "ohlc_1m_ADA.csv.gz"
   },
   "AVAX": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145028"
+    "binance_vision_monthly": "ok rows=145014"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145028,
-   "first_bar": 1779519120,
+   "rows_1m": 145014,
+   "first_bar": 1779519960,
    "last_bar": 1788220740,
    "path": "ohlc_1m_AVAX.csv.gz"
   },
   "LINK": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145028"
+    "binance_vision_monthly": "ok rows=145013"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145028,
-   "first_bar": 1779519120,
+   "rows_1m": 145013,
+   "first_bar": 1779520020,
    "last_bar": 1788220740,
    "path": "ohlc_1m_LINK.csv.gz"
   },
   "DOT": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145028"
+    "binance_vision_monthly": "ok rows=145013"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145028,
-   "first_bar": 1779519120,
+   "rows_1m": 145013,
+   "first_bar": 1779520020,
    "last_bar": 1788220740,
    "path": "ohlc_1m_DOT.csv.gz"
   },
   "LTC": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145028"
+    "binance_vision_monthly": "ok rows=145013"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145028,
-   "first_bar": 1779519120,
+   "rows_1m": 145013,
+   "first_bar": 1779520020,
    "last_bar": 1788220740,
    "path": "ohlc_1m_LTC.csv.gz"
   },
   "BCH": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145027"
+    "binance_vision_monthly": "ok rows=145013"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145027,
-   "first_bar": 1779519180,
+   "rows_1m": 145013,
+   "first_bar": 1779520020,
    "last_bar": 1788220740,
    "path": "ohlc_1m_BCH.csv.gz"
   },
   "TRX": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145027"
+    "binance_vision_monthly": "ok rows=145013"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145027,
-   "first_bar": 1779519180,
+   "rows_1m": 145013,
+   "first_bar": 1779520020,
    "last_bar": 1788220740,
    "path": "ohlc_1m_TRX.csv.gz"
   },
   "ATOM": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145027"
+    "binance_vision_monthly": "ok rows=145012"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145027,
-   "first_bar": 1779519180,
+   "rows_1m": 145012,
+   "first_bar": 1779520080,
    "last_bar": 1788220740,
    "path": "ohlc_1m_ATOM.csv.gz"
   },
   "NEAR": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145027"
+    "binance_vision_monthly": "ok rows=145012"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145027,
-   "first_bar": 1779519180,
+   "rows_1m": 145012,
+   "first_bar": 1779520080,
    "last_bar": 1788220740,
    "path": "ohlc_1m_NEAR.csv.gz"
   },
   "FIL": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145026"
+    "binance_vision_monthly": "ok rows=145012"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145026,
-   "first_bar": 1779519240,
+   "rows_1m": 145012,
+   "first_bar": 1779520080,
    "last_bar": 1788220740,
    "path": "ohlc_1m_FIL.csv.gz"
   },
   "UNI": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145026"
+    "binance_vision_monthly": "ok rows=145012"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145026,
-   "first_bar": 1779519240,
+   "rows_1m": 145012,
+   "first_bar": 1779520080,
    "last_bar": 1788220740,
    "path": "ohlc_1m_UNI.csv.gz"
   },
   "AAVE": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145026"
+    "binance_vision_monthly": "ok rows=145012"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145026,
-   "first_bar": 1779519240,
+   "rows_1m": 145012,
+   "first_bar": 1779520080,
    "last_bar": 1788220740,
    "path": "ohlc_1m_AAVE.csv.gz"
   },
   "ALGO": {
    "sources": {
-    "binance_vision_monthly": "ok rows=145026"
+    "binance_vision_monthly": "ok rows=145011"
    },
    "source": "binance_vision_monthly",
-   "rows_1m": 145026,
-   "first_bar": 1779519240,
+   "rows_1m": 145011,
+   "first_bar": 1779520140,
    "last_bar": 1788220740,
    "path": "ohlc_1m_ALGO.csv.gz"
   }
