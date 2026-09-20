@@ -186,6 +186,25 @@ class NobitexMomentumEngine:
                 stats["best_obs"] = max(stats["best_obs"], observed)
             self._record(symbol,price,now)
             if ask<=0 or bid<=0 or ask<bid: continue
+
+            # Candidate discovery is intentionally independent from execution
+            # liquidity/risk gates.  A mover must first be discovered and
+            # observed across the configured confirmation scans; only then do
+            # volume, spread, chase, BTC-regime and L2 gates decide whether it
+            # is executable.  This prevents a single low-liquidity scan from
+            # erasing the confirmation history of a genuine local mover.
+            if observed is None or observed<self.min_observed_move_pct:
+                stats["no_trend"]+=1
+                self._hits.pop(symbol,None)
+                self._first_seen.pop(symbol,None)
+                continue
+
+            hits=self._hits.get(symbol,0)+1
+            self._hits[symbol]=hits
+            if hits<self.min_confirm_scans:
+                stats["confirm"]+=1
+                continue
+
             spread=(ask-bid)/bid*100.0
             if volume<self.min_volume_irt: stats["volume"]+=1; continue
             if spread>self.max_spread_pct: stats["spread"]+=1; continue
@@ -195,11 +214,9 @@ class NobitexMomentumEngine:
             # The GUI/execution layer supplies `asks` for the small set of
             # momentum candidates. Missing depth is fail-closed.
             if self.max_local_24h_pct>0 and local_24h>self.max_local_24h_pct: stats["falling"]+=1; continue
-            if observed is None or observed<self.min_observed_move_pct:
-                stats["no_trend"]+=1; self._hits.pop(symbol,None); self._first_seen.pop(symbol,None); continue
             local_tick=recent if recent is not None else 0.0
             if local_tick< -self.max_local_fall_pct:
-                stats["falling"]+=1; self._hits.pop(symbol,None); self._first_seen.pop(symbol,None); continue
+                stats["falling"]+=1; continue
             last=safe_float(source.get("Price")) or 0.0
             chase=(ask-last)/last*100.0 if last>0 and ask>last else 0.0
             if chase>self.max_chase_pct: stats["chase"]+=1; continue
@@ -211,11 +228,6 @@ class NobitexMomentumEngine:
                 )
                 if not eagle: stats["btc_dump"]+=1; continue
                 stats["btc_dump_exc"]+=1
-            if observed<self.pump_threshold_pct and not eagle:
-                hits=self._hits.get(symbol,0)+1; self._hits[symbol]=hits
-                if hits<self.min_confirm_scans: stats["confirm"]+=1; continue
-            else:
-                hits=max(1,self._hits.get(symbol,0)+1); self._hits[symbol]=hits
             if require_depth and self.min_ask_depth_quote > 0:
                 levels = source.get("asks") or source.get("AskLevels") or []
                 if not levels:
