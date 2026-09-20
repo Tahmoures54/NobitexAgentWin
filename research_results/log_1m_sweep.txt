@@ -1,5 +1,6 @@
 == loading 1m bars from research_data
   loaded BTC: 177120 bars (1m)
+  filtered to ['BTC']
 
 == file_defaults: trades=4 win=25.0 expectancy=-1.1146% return=-0.745% dd=1.657% pf=0.384 halted=False
 
@@ -24,4 +25,12 @@
    h30m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
    h60m: {'mean_pct': 0.0, 'median_pct': 0.0, 'pct_positive': 0.0, 'mean_mfe_pct': 0.0, 'mean_mae_pct': 0.0, 'prob_mfe_ge_stop_before_mae': 0.0}
 
-wrote research_data/results_1m.json
+== sweep best by expectancy:
+   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 54, 'win_rate': 59.26, 'expectancy_pct': -0.4025, 'return_pct': -4.291, 'max_dd_pct': 6.041}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 2.0, 'trades': 50, 'win_rate': 56.0, 'expectancy_pct': -0.43, 'return_pct': -4.238, 'max_dd_pct': 6.452}
+   {'threshold': 0.5, 'lookback': 4, 'trail': 1.2, 'stop': 2.0, 'trades': 74, 'win_rate': 51.35, 'expectancy_pct': -0.5629, 'return_pct': -8.045, 'max_dd_pct': 10.555}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 3.0, 'trades': 48, 'win_rate': 62.5, 'expectancy_pct': -0.5806, 'return_pct': -4.569, 'max_dd_pct': 7.01}
+   {'threshold': 0.5, 'lookback': 4, 'trail': 0.6, 'stop': 2.0, 'trades': 81, 'win_rate': 53.09, 'expectancy_pct': -0.5941, 'return_pct': -9.236, 'max_dd_pct': 11.963}
+   positive cells (>=20 trades): 0/16
+
+wrote research_data/results_1m_sweep.json
