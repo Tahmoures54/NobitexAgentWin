@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-09-20T04:44:27.779643+00:00",
+  "symbols": [
+    "BTC",
+    "ETH"
+  ],
+  "ohlc": {
+    "BTC": {
+      "cached": true,
+      "rows": -1
+    },
+    "ETH": {
+      "cached": true,
+      "rows": -1
+    },
+    "SOL": {
+      "provenance": "binance-vision:SOLUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    },
+    "XRP": {
+      "provenance": "binance-vision:XRPUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    },
+    "DOGE": {
+      "provenance": "binance-vision:DOGEUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    },
+    "ADA": {
+      "provenance": "binance-vision:ADAUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    },
+    "AVAX": {
+      "provenance": "binance-vision:AVAXUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    },
+    "LINK": {
+      "provenance": "binance-vision:LINKUSDT:1m",
+      "rows": 129600,
+      "first": 1782086400,
+      "last": 1789862340
+    }
+  },
+  "ticks": {
+    "BTC": {
+      "provenance": "binance-vision:BTCUSDT:1s->10s",
+      "rows": 60480,
+      "first": 1789257600,
+      "last": 1789862390
+    },
+    "ETH": {
+      "provenance": "binance-vision:ETHUSDT:1s->10s",
+      "rows": 60480,
+      "first": 1789257600,
+      "last": 1789862390
+    }
+  },
+  "errors": [],
+  "nobitex": {
+    "attempts": [
+      {
+        "url": "https://api.nobitex.ir/market/stats?dstCurrency=rls",
+        "ok": false,
+        "error": "request failed: https://api.nobitex.ir/market/stats?dstCurrency=rls :: <urlopen error [Errno -2] Name or service not known>"
+      },
+      {
+        "url": "https://api.nobitex.ir/market/udf/history?symbol=BTCIRT&resolution=15&from=1789429446&to=1789879446",
+        "ok": false,
+        "error": "request failed: https://api.nobitex.ir/market/udf/history?symbol=BTCIRT&resolution=15&from=1789429446&to=1789879446 :: <urlopen error [Errno -2] Name or service not known>"
+      },
+      {
+        "url": "https://api.nobitex.ir/market/orderbook/BTCIRT?limit=10",
+        "ok": false,
+        "error": "request failed: https://api.nobitex.ir/market/orderbook/BTCIRT?limit=10 :: <urlopen error [Errno -2] Name or service not known>"
+      }
+    ],
+    "reachable": false
+  }
+}

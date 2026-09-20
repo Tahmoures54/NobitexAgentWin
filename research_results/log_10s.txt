@@ -1,0 +1,165 @@
+loaded 10s bars: BTC=60,480 bars (10s), ETH=60,480 bars (10s)
+
+=== A) bot_config.json FILE DEFAULTS (fees 0.25%/side, half-spread 0.15%/side, slip 0.05%/side) ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=0
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {}
+
+=== B) BALANCED REGIME PRESET — what auto_regime_strategy really applies (min move 0.8%, trail 3.0/2.0, TP 50%, confirmation on, 10 slots) ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=4
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {'pending_created': 1, 'btc_dump': 2, 'pending_expired': 1}
+
+(primary arm for the remaining blocks: balanced-preset = deployed behaviour)
+  bootstrap CI      : {}
+  monte carlo       : {}
+  cost geometry     : {'half_spread_pct_assumed': 0.15, 'fee_pct_per_side': 0.25, 'slippage_pct_per_side': 0.05, 'round_trip_cost_pct_of_notional': 0.9, 'cost_as_pct_of_stop_distance': 30.0, 'smallest_possible_trailing_win_gross_pct': 0.3, 'smallest_possible_trailing_win_net_pct': -0.6, 'min_gain_pct_to_break_even': 0.9, 'ideal_trail_win_pct_needed': 2.1, 'break_even_win_rate_pct_for_3pct_stop': 72.22}
+  buy & hold        : {'BTC': {'return_pct': np.float64(5.154), 'max_dd_pct': np.float64(5.745), 'ann_vol_pct': 35.95}, 'ETH': {'return_pct': np.float64(4.245), 'max_dd_pct': np.float64(9.679), 'ann_vol_pct': 53.12}}
+
+=== SIGNAL-ONLY (zero fees / zero spread: is the entry edge real?) ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=4
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {'pending_created': 1, 'btc_dump': 2, 'pending_expired': 1}
+
+=== COST SCENARIO — taker 0.10% / tight book 0.02% ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=0
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {}
+
+=== COST SCENARIO — taker 0.15% / Nobitex BTC-IRT 0.15% ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=0
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {}
+
+=== COST SCENARIO — taker 0.25% / Nobitex BTC-IRT 0.30% ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=0
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {}
+
+=== COST SCENARIO — taker 0.25% / allowed max spread 0.90% ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,000,000 IRT (+0.000%)
+  trades            : 0 (0.0/day) | signals seen=0
+  win rate          : None% | avg win None% | avg loss None%
+  expectancy/trade  : None% (None IRT) | median None%
+  profit factor     : None | max DD 0.0%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : 0.0 IRT
+  exits             : {}
+  blocked entries   : {}
+
+=== CONTROL — random entries, identical exit rules ===
+  window            : 7.00 days | bars=10s | symbols=BTC,ETH
+  equity            : 10,000,000 → 10,187,463 IRT (+1.875%)
+  trades            : 5 (0.714/day) | signals seen=0
+  win rate          : 60.0% | avg win 5.0348% | avg loss -3.686%
+  expectancy/trade  : 1.5465% (37492.6 IRT) | median 0.6611%
+  profit factor     : 2.016 | max DD 3.853%
+  costs paid        : 136,057.6 IRT (fees 81,504.5 / spread+slip 54,553.1)
+  P&L before costs  : 323,520.4 IRT
+  exits             : {'Trailing Stop': 1, 'Stop Loss': 2, 'Open at end': 2}
+  blocked entries   : {'already_open': 122}
+  [sweep] thr=0.5  trail=0.6   stop=2.0  trades=1    win=100    exp=1.8333    ret=0.458     dd=0.466
+  [sweep] thr=0.5  trail=0.6   stop=3.0  trades=1    win=100    exp=1.8333    ret=0.458     dd=0.466
+  [sweep] thr=0.5  trail=0.6   stop=5.0  trades=1    win=100    exp=1.8333    ret=0.275     dd=0.28
+  [sweep] thr=0.5  trail=1.2   stop=2.0  trades=1    win=100    exp=1.2171    ret=0.304     dd=0.466
+  [sweep] thr=0.5  trail=1.2   stop=3.0  trades=1    win=100    exp=1.2171    ret=0.304     dd=0.466
+  [sweep] thr=0.5  trail=1.2   stop=5.0  trades=1    win=100    exp=1.2171    ret=0.183     dd=0.28
+  [sweep] thr=0.5  trail=2.0   stop=2.0  trades=1    win=100    exp=8.773     ret=2.193     dd=0.467
+  [sweep] thr=0.5  trail=2.0   stop=3.0  trades=1    win=100    exp=8.773     ret=2.193     dd=0.467
+  [sweep] thr=0.5  trail=2.0   stop=5.0  trades=1    win=100    exp=8.773     ret=1.316     dd=0.281
+  [sweep] thr=0.5  trail=99.0  stop=2.0  trades=1    win=100    exp=8.773     ret=2.193     dd=0.467
+  [sweep] thr=0.5  trail=99.0  stop=3.0  trades=1    win=100    exp=8.773     ret=2.193     dd=0.467
+  [sweep] thr=0.5  trail=99.0  stop=5.0  trades=1    win=100    exp=8.773     ret=1.316     dd=0.281
+  [sweep] thr=1.0  trail=0.6   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=0.6   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=0.6   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=1.2   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=1.2   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=1.2   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=2.0   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=2.0   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=2.0   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=99.0  stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=99.0  stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.0  trail=99.0  stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=0.6   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=0.6   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=0.6   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=1.2   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=1.2   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=1.2   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=2.0   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=2.0   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=2.0   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=99.0  stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=99.0  stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=1.5  trail=99.0  stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=0.6   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=0.6   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=0.6   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=1.2   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=1.2   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=1.2   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=2.0   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=2.0   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=2.0   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=99.0  stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=99.0  stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=2.0  trail=99.0  stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=0.6   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=0.6   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=0.6   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=1.2   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=1.2   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=1.2   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=2.0   stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=2.0   stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=2.0   stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=99.0  stop=2.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=99.0  stop=3.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+  [sweep] thr=3.0  trail=99.0  stop=5.0  trades=0    win=n/a    exp=n/a       ret=0         dd=0
+
+wrote research_data/results_10s.json

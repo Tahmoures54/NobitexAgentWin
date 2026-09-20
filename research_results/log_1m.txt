@@ -1,0 +1,105 @@
+loaded 1m bars: ADA=129,600 bars (60s), AVAX=129,600 bars (60s), BTC=129,600 bars (60s), DOGE=129,600 bars (60s), ETH=129,600 bars (60s), LINK=129,600 bars (60s), SOL=129,600 bars (60s), XRP=129,600 bars (60s)
+
+=== A) bot_config.json FILE DEFAULTS (fees 0.25%/side, half-spread 0.15%/side, slip 0.05%/side) ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,546,911 IRT (-4.531%)
+  trades            : 42 (0.467/day) | signals seen=223
+  win rate          : 42.86% | avg win 1.0241% | avg loss -1.9488%
+  expectancy/trade  : -0.6747% (-10787.8 IRT) | median -0.2315%
+  profit factor     : 0.383 | max DD 5.765%
+  costs paid        : 871,071.3 IRT (fees 484,071.5 / spread+slip 386,999.9)
+  P&L before costs  : 417,982.5 IRT
+  exits             : {'Trailing Stop': 31, 'Stop Loss': 11}
+  blocked entries   : {'btc_dump': 25, 'chase': 50, '24h_move': 43, 'entry_cooldown': 12, 'max_open': 3427, 'already_open': 7, 'cooldown': 17}
+
+=== B) BALANCED REGIME PRESET — what auto_regime_strategy really applies (min move 0.8%, trail 3.0/2.0, TP 50%, confirmation on, 10 slots) ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,029,813 IRT (-9.702%)
+  trades            : 17 (0.189/day) | signals seen=1421
+  win rate          : 23.53% | avg win 1.8752% | avg loss -3.686%
+  expectancy/trade  : -2.3775% (-57069.8 IRT) | median -3.686%
+  profit factor     : 0.151 | max DD 10.056%
+  costs paid        : 539,482.6 IRT (fees 299,803.2 / spread+slip 239,679.5)
+  P&L before costs  : -430,704.4 IRT
+  exits             : {'Stop Loss': 13, 'Trailing Stop': 4}
+  blocked entries   : {'pending_created': 169, 'pending_wait': 168, 'pending_expired': 147, 'btc_dump': 243, 'chase': 70, 'already_open': 72, 'cooldown': 13, 'entry_cooldown': 22, '24h_move': 28, 'halted_drawdown': 70233}
+
+(primary arm for the remaining blocks: balanced-preset = deployed behaviour)
+  bootstrap CI      : {'n': 17, 'mean': -2.3775, 'ci95_low': -3.3979, 'ci95_high': -1.1118, 'prob_negative_expectancy': 100.0}
+  monte carlo       : {'paths': 2000, 'trades_per_path': 200, 'median_final_multiple': np.float64(0.498), 'p05_final_multiple': np.float64(0.496), 'p95_final_multiple': np.float64(0.5), 'prob_loss': 100.0, 'prob_half_loss': 100.0, 'median_max_dd_pct': np.float64(50.24), 'p95_max_dd_pct': np.float64(50.54)}
+  cost geometry     : {'half_spread_pct_assumed': 0.15, 'fee_pct_per_side': 0.25, 'slippage_pct_per_side': 0.05, 'round_trip_cost_pct_of_notional': 0.9, 'cost_as_pct_of_stop_distance': 30.0, 'smallest_possible_trailing_win_gross_pct': 0.3, 'smallest_possible_trailing_win_net_pct': -0.6, 'min_gain_pct_to_break_even': 0.9, 'ideal_trail_win_pct_needed': 2.1, 'break_even_win_rate_pct_for_3pct_stop': 72.22}
+  buy & hold        : {'ADA': {'return_pct': np.float64(45.096), 'max_dd_pct': np.float64(26.336), 'ann_vol_pct': 83.8}, 'AVAX': {'return_pct': np.float64(64.908), 'max_dd_pct': np.float64(15.219), 'ann_vol_pct': 66.08}, 'BTC': {'return_pct': np.float64(28.227), 'max_dd_pct': np.float64(11.736), 'ann_vol_pct': 37.14}, 'DOGE': {'return_pct': np.float64(6.547), 'max_dd_pct': np.float64(21.76), 'ann_vol_pct': 64.1}, 'ETH': {'return_pct': np.float64(54.008), 'max_dd_pct': np.float64(14.916), 'ann_vol_pct': 50.13}, 'LINK': {'return_pct': np.float64(59.348), 'max_dd_pct': np.float64(22.257), 'ann_vol_pct': 62.94}, 'SOL': {'return_pct': np.float64(53.144), 'max_dd_pct': np.float64(15.858), 'ann_vol_pct': 59.06}, 'XRP': {'return_pct': np.float64(25.191), 'max_dd_pct': np.float64(26.09), 'ann_vol_pct': 65.55}}
+
+=== SIGNAL-ONLY (zero fees / zero spread: is the entry edge real?) ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 8,937,891 IRT (-10.621%)
+  trades            : 50 (0.556/day) | signals seen=3281
+  win rate          : 36.0% | avg win 2.8303% | avg loss -3.0%
+  expectancy/trade  : -0.9011% (-21242.2 IRT) | median -3.0%
+  profit factor     : 0.527 | max DD 11.072%
+  costs paid        : 0.0 IRT (fees 0.0 / spread+slip 0.0)
+  P&L before costs  : -1,062,109.1 IRT
+  exits             : {'Stop Loss': 32, 'Trailing Stop': 18}
+  blocked entries   : {'pending_created': 364, 'pending_wait': 357, 'pending_expired': 309, 'btc_dump': 247, 'chase': 132, 'already_open': 345, 'cooldown': 55, 'entry_cooldown': 68, '24h_move': 536, 'halted_drawdown': 32179}
+
+=== COST SCENARIO — taker 0.10% / tight book 0.02% ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,877,375 IRT (-1.226%)
+  trades            : 43 (0.478/day) | signals seen=223
+  win rate          : 62.79% | avg win 1.2261% | avg loss -2.4765%
+  expectancy/trade  : -0.1516% (-2851.7 IRT) | median 0.4101%
+  profit factor     : 0.807 | max DD 2.947%
+  costs paid        : 262,972.6 IRT (fees 202,291.3 / spread+slip 60,681.3)
+  P&L before costs  : 140,347.4 IRT
+  exits             : {'Trailing Stop': 31, 'Stop Loss': 12}
+  blocked entries   : {'btc_dump': 25, 'chase': 50, '24h_move': 43, 'entry_cooldown': 13, 'max_open': 3427, 'already_open': 7, 'cooldown': 14}
+
+=== COST SCENARIO — taker 0.15% / Nobitex BTC-IRT 0.15% ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,757,904 IRT (-2.421%)
+  trades            : 42 (0.467/day) | signals seen=223
+  win rate          : 54.76% | avg win 1.1087% | avg loss -2.103%
+  expectancy/trade  : -0.3442% (-5764.2 IRT) | median 0.1191%
+  profit factor     : 0.618 | max DD 4.108%
+  costs paid        : 538,305.4 IRT (fees 293,676.6 / spread+slip 244,628.8)
+  P&L before costs  : 296,208.9 IRT
+  exits             : {'Trailing Stop': 31, 'Stop Loss': 11}
+  blocked entries   : {'btc_dump': 25, 'chase': 50, '24h_move': 43, 'entry_cooldown': 12, 'max_open': 3427, 'already_open': 7, 'cooldown': 17}
+
+=== COST SCENARIO — taker 0.25% / Nobitex BTC-IRT 0.30% ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,546,911 IRT (-4.531%)
+  trades            : 42 (0.467/day) | signals seen=223
+  win rate          : 42.86% | avg win 1.0241% | avg loss -1.9488%
+  expectancy/trade  : -0.6747% (-10787.8 IRT) | median -0.2315%
+  profit factor     : 0.383 | max DD 5.765%
+  costs paid        : 871,071.3 IRT (fees 484,071.5 / spread+slip 386,999.9)
+  P&L before costs  : 417,982.5 IRT
+  exits             : {'Trailing Stop': 31, 'Stop Loss': 11}
+  blocked entries   : {'btc_dump': 25, 'chase': 50, '24h_move': 43, 'entry_cooldown': 12, 'max_open': 3427, 'already_open': 7, 'cooldown': 17}
+
+=== COST SCENARIO — taker 0.25% / allowed max spread 0.90% ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 8,942,929 IRT (-10.571%)
+  trades            : 45 (0.5/day) | signals seen=243
+  win rate          : 22.22% | avg win 0.7429% | avg loss -2.1702%
+  expectancy/trade  : -1.5228% (-23490.5 IRT) | median -1.0725%
+  profit factor     : 0.095 | max DD 11.084%
+  costs paid        : 1,618,814.3 IRT (fees 506,516.5 / spread+slip 1,112,297.9)
+  P&L before costs  : 561,743.1 IRT
+  exits             : {'Trailing Stop': 31, 'Stop Loss': 14}
+  blocked entries   : {'btc_dump': 25, 'chase': 53, '24h_move': 50, 'entry_cooldown': 13, 'max_open': 2944, 'already_open': 9, 'cooldown': 20}
+
+=== CONTROL — random entries, identical exit rules ===
+  window            : 90.00 days | bars=1m | symbols=ADA,AVAX,BTC,DOGE,ETH,LINK,SOL,XRP
+  equity            : 10,000,000 → 9,081,257 IRT (-9.187%)
+  trades            : 15 (0.167/day) | signals seen=0
+  win rate          : 13.33% | avg win 2.8054% | avg loss -3.686%
+  expectancy/trade  : -2.8205% (-61249.6 IRT) | median -3.686%
+  profit factor     : 0.123 | max DD 10.615%
+  costs paid        : 431,095.0 IRT (fees 239,570.0 / spread+slip 191,525.0)
+  P&L before costs  : -487,648.2 IRT
+  exits             : {'Trailing Stop': 2, 'Stop Loss': 13}
+  blocked entries   : {'already_open': 17, 'exposure_cap_min': 6, 'exposure_cap': 3, 'halted_drawdown': 124454}
+
+wrote research_data/results_1m.json
