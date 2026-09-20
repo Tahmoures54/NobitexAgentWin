@@ -17,10 +17,10 @@ on:
         default: '90'
       tick_days:
         description: 'days of 10s bars'
-        default: '10'
+        default: '7'
       symbols:
         description: 'symbol basket'
-        default: 'BTC,ETH,SOL,XRP,DOGE'
+        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK'
 
 permissions:
   contents: write
@@ -42,15 +42,15 @@ jobs:
       - name: Fetch market data
         env:
           DAYS: ${{ github.event.inputs.days || '90' }}
-          TICK_DAYS: ${{ github.event.inputs.tick_days || '10' }}
-          SYMBOLS: ${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE' }}
+          TICK_DAYS: ${{ github.event.inputs.tick_days || '7' }}
+          SYMBOLS: ${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK' }}
         run: |
           mkdir -p research_data
           python -u tools/research/fetch_market_data.py \
-            --days "$DAYS" --symbols "$SYMBOLS" --skip-ticks --max-minutes 8 \
+            --days "$DAYS" --symbols "$SYMBOLS" --skip-ticks --max-minutes 10 \
             2>&1 | tee research_data/log_fetch.txt | tail -60
           python -u tools/research/fetch_market_data.py \
-            --days 1 --tick-days "$TICK_DAYS" --symbols BTC,ETH --max-minutes 12 \
+            --days 1 --tick-days "$TICK_DAYS" --symbols BTC,ETH --skip-nobitex --max-minutes 10 \
             2>&1 | tee -a research_data/log_fetch.txt | tail -60 || true
           ls -la research_data
           ls -la research_data || true

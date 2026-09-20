@@ -33,7 +33,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "research_data")
 UA = {"User-Agent": "CryptoScanner-Research/1.0 (+profitability-study)"}
 HTTP_TIMEOUT = 30.0
-SLEEP_BETWEEN_CALLS = 0.25
+SLEEP_BETWEEN_CALLS = 0.7
 DEADLINE = float("inf")
 
 
@@ -186,6 +186,59 @@ def fetch_kucoin_1m(base: str, days: int) -> Tuple[List[list], str]:
     return rows, f"kucoin:{symbol}:1m"
 
 
+def _vision_days(symbol: str, interval: str, days: int) -> Iterable[List[list]]:
+    """Yield per-day kline rows from the static Binance Vision CDN (no rate limits)."""
+    today = datetime.now(timezone.utc).date()
+    for offset in range(days, 0, -1):
+        d = datetime.fromordinal(today.toordinal() - offset).date()
+        url = (f"https://data.binance.vision/data/spot/daily/klines/{symbol}/{interval}/"
+               f"{symbol}-{interval}-{d.isoformat()}.zip")
+        try:
+            req = urllib.request.Request(url, headers=UA)
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                blob = resp.read()
+            with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+                name = zf.namelist()[0]
+                with zf.open(name) as fh:
+                    day_rows = []
+                    for line in fh.read().decode("utf-8", "replace").splitlines():
+                        parts = line.split(",")
+                        if len(parts) < 6 or not parts[0].strip().isdigit():
+                            continue
+                        ts = int(parts[0])
+                        if ts > 10_000_000_000:
+                            ts //= 1000
+                        day_rows.append([ts, float(parts[1]), float(parts[2]), float(parts[3]),
+                                         float(parts[4]), float(parts[5])])
+            yield day_rows
+        except Exception as exc:  # noqa: BLE001
+            print(f"    binance-vision {symbol} {interval} {d}: {str(exc)[:120]}")
+            yield []
+
+
+def fetch_binance_vision_1s_bars(base: str, days: int) -> Tuple[List[list], str]:
+    """1-second klines aggregated to 10-second bars (the live scan cadence)."""
+    symbol = f"{base}USDT"
+    buckets: Dict[int, List[float]] = {}
+    for day_rows in _vision_days(symbol, "1s", days):
+        if out_of_time():
+            break
+        for r in day_rows:
+            b = (r[0] // 10) * 10
+            cur = buckets.get(b)
+            if cur is None:
+                buckets[b] = [r[1], r[2], r[3], r[4], r[5], 1.0]
+            else:
+                cur[1] = max(cur[1], r[2])
+                cur[2] = min(cur[2], r[3])
+                cur[3] = r[4]
+                cur[4] += r[5]
+                cur[5] += 1.0
+        time.sleep(0.02)
+    rows = [[b] + v for b, v in sorted(buckets.items())]
+    return rows, f"binance-vision:{symbol}:1s->10s"
+
+
 def fetch_binance_vision_1m(base: str, days: int) -> Tuple[List[list], str]:
     """Daily zips from data.binance.vision (works in some regions where API is 451)."""
     symbol = f"{base}USDT"
@@ -221,11 +274,11 @@ def fetch_binance_vision_1m(base: str, days: int) -> Tuple[List[list], str]:
 
 
 OHLC_SOURCES: Sequence[Tuple[str, Callable[[str, int], Tuple[List[list], str]]]] = (
+    ("binance_vision", fetch_binance_vision_1m),
     ("bitfinex", fetch_bitfinex_1m),
     ("bitstamp", fetch_bitstamp_1m),
     ("bybit", fetch_bybit_1m),
     ("kucoin", fetch_kucoin_1m),
-    ("binance_vision", fetch_binance_vision_1m),
 )
 
 
@@ -334,6 +387,7 @@ def fetch_coinbase_trades(base: str, days: int) -> Tuple[List[list], str]:
 
 
 TRADE_SOURCES: Sequence[Tuple[str, Callable[[str, int], Tuple[List[list], str]]]] = (
+    ("binance_vision_1s", fetch_binance_vision_1s_bars),
     ("bitfinex", fetch_bitfinex_trades),
     ("coinbase", fetch_coinbase_trades),
 )

@@ -817,31 +817,63 @@ def forward_return_study(data: Dict[str, Bars], params: Params, kind: str,
                         row[f"h{h}_ret_pct"] = round((float(b.c[j]) - entry) / entry * 100.0, 4)
                     events.append(row)
 
+    # unconditional baseline: identical statistics at random (de-clustered) times.
+    # Without this control a positive MFE number means nothing.
+    for sym, b in data.items():
+        step = b.step
+        for i in range(0, len(b) - 1, max(1, int(round(1800 / step)))):
+            entry = float(b.c[i])
+            row = {"symbol": sym, "t": int(b.t[i]), "lookback_scans": 0,
+                   "threshold_pct": 0.0, "observed_pct": 0.0, "entry": entry}
+            for h in horizons_sec:
+                j = min(len(b) - 1, i + int(round(h / step)))
+                seg_hi = float(np.max(b.h[i + 1:j + 1])) if j > i else entry
+                seg_lo = float(np.min(b.l[i + 1:j + 1])) if j > i else entry
+                row[f"h{h}_mfe_pct"] = round((seg_hi - entry) / entry * 100.0, 4)
+                row[f"h{h}_mae_pct"] = round((seg_lo - entry) / entry * 100.0, 4)
+                row[f"h{h}_ret_pct"] = round((float(b.c[j]) - entry) / entry * 100.0, 4)
+            events.append(row)
+
     summary: Dict[str, Any] = {"dataset": kind, "symbols": sorted(data.keys()),
                                "events": len(events), "cells": {}}
     keys = list(events[0].keys()) if events else []
-    for L in lookbacks:
-        for T in thresholds:
-            sel = [e for e in events if e["lookback_scans"] == L and e["threshold_pct"] == T]
-            if len(sel) < 10:
-                continue
-            cell: Dict[str, Any] = {"n": len(sel)}
+    combos = [(0, 0.0)] + [(L, T) for L in lookbacks for T in thresholds]
+
+    def _cell(sel: List[Dict[str, Any]]) -> Dict[str, Any]:
+        cell: Dict[str, Any] = {"n": len(sel)}
+        for h in horizons_sec:
+            rets = np.array([e[f"h{h}_ret_pct"] for e in sel])
+            mfes = np.array([e[f"h{h}_mfe_pct"] for e in sel])
+            maes = np.array([e[f"h{h}_mae_pct"] for e in sel])
+            sd = float(rets.std(ddof=1)) if len(rets) > 2 else 0.0
+            cell[f"h{h}"] = {
+                "mean_ret": round(float(rets.mean()), 4),
+                "median_ret": round(float(np.median(rets)), 4),
+                "std_ret": round(sd, 4),
+                "t_stat": round(float(rets.mean() / (sd / math.sqrt(len(rets)))), 2)
+                if sd > 0 else None,
+                "pct_positive": round(float((rets > 0).mean() * 100.0), 1),
+                "mean_mfe": round(float(mfes.mean()), 4),
+                "mean_mae": round(float(maes.mean()), 4),
+                "pct_mfe_ge_1.5_and_mae_lt_1.5": round(float(
+                    ((mfes >= 1.5) & (np.abs(maes) < 1.5)).mean() * 100.0), 1),
+            }
+        return cell
+
+    for L, T in combos:
+        sel = [e for e in events if e["lookback_scans"] == L and e["threshold_pct"] == T]
+        if len(sel) < 10:
+            continue
+        label = "UNCONDITIONAL" if L == 0 else f"L{L}_T{T}"
+        cell = _cell(sel)
+        # edge = signal-cell mean forward return minus the unconditional mean
+        uncond = next((c for k, c in summary["cells"].items() if k == "UNCONDITIONAL"), None)
+        if uncond and label != "UNCONDITIONAL":
             for h in horizons_sec:
-                rets = np.array([e[f"h{h}_ret_pct"] for e in sel])
-                mfes = np.array([e[f"h{h}_mfe_pct"] for e in sel])
-                maes = np.array([e[f"h{h}_mae_pct"] for e in sel])
-                cell[f"h{h}"] = {
-                    "mean_ret": round(float(rets.mean()), 4),
-                    "median_ret": round(float(np.median(rets)), 4),
-                    "std_ret": round(float(rets.std(ddof=1)), 4),
-                    "t_stat": round(float(rets.mean() / (rets.std(ddof=1) / math.sqrt(len(rets)))), 2)
-                    if len(rets) > 2 and rets.std(ddof=1) > 0 else None,
-                    "pct_positive": round(float((rets > 0).mean() * 100.0), 1),
-                    "mean_mfe": round(float(mfes.mean()), 4),
-                    "mean_mae": round(float(maes.mean()), 4),
-                    "pct_hit_3pct_up_before_down": None,
-                }
-            summary["cells"][f"L{L}_T{T}"] = cell
+                base = uncond.get(f"h{h}", {}).get("mean_ret")
+                if base is not None:
+                    cell[f"h{h}"]["edge_vs_unconditional"] = round(cell[f"h{h}"]["mean_ret"] - base, 4)
+        summary["cells"][label] = cell
 
     if out_path and events:
         import csv as _csv
