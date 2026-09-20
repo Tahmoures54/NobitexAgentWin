@@ -1941,7 +1941,12 @@ class CryptoScannerApp:
             "day_high": deep.get("day_high", base.get("Day High")),
             "day_low": deep.get("day_low", base.get("Day Low")),
             "day_pos": deep.get("day_position_pct"),
+            "day_range": deep.get("day_range"),
             "buy_pressure": deep.get("buy_pressure_pct"),
+            "buy_volume": deep.get("buy_volume"),
+            "sell_volume": deep.get("sell_volume"),
+            "bid_depth": deep.get("bid_depth"),
+            "ask_depth": deep.get("ask_depth"),
             "sell_pressure": deep.get("sell_pressure_pct"),
             "ratio": deep.get("buy_sell_ratio"),
             "imbalance": deep.get("orderbook_imbalance_pct"),
@@ -1956,8 +1961,12 @@ class CryptoScannerApp:
             "macd_hist": deep.get("macd_hist"),
             "volume_ratio": deep.get("volume_ratio"),
             "last_trade": deep.get("last_trade_type"),
+            "last_trade_price": deep.get("last_trade_price"),
             "trades": deep.get("trades_count"),
             "candles": deep.get("candles_available"),
+            "ohlc5_high": (deep.get("ohlc_5m") or {}).get("high"),
+            "ohlc5_low": (deep.get("ohlc_5m") or {}).get("low"),
+            "ohlc5_volume": (deep.get("ohlc_5m") or {}).get("volume"),
         }
         if hasattr(self, "market_intelligence_vars"):
             for key, var in self.market_intelligence_vars.items():
