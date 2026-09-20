@@ -9,12 +9,12 @@
   "XRP"
  ],
  "bars_loaded": {
-  "ADA": 145099,
-  "BTC": 145100,
-  "DOGE": 145099,
-  "ETH": 145100,
-  "SOL": 145099,
-  "XRP": 145099
+  "ADA": 145090,
+  "BTC": 145091,
+  "DOGE": 145090,
+  "ETH": 145091,
+  "SOL": 145091,
+  "XRP": 145090
  },
  "file_defaults": {
   "label": "file_defaults",
@@ -95,15 +95,15 @@
   "signals": 182,
   "win_rate_pct": 50.59,
   "avg_win_pct": 1.358,
-  "avg_loss_pct": -2.3649,
-  "expectancy_pct": -0.4815,
-  "expectancy_quote": -8689.57,
+  "avg_loss_pct": -2.3659,
+  "expectancy_pct": -0.482,
+  "expectancy_quote": -8698.57,
   "profit_factor": 0.556,
-  "net_pnl_quote": -738613.64,
-  "return_pct": -7.386,
-  "final_equity": 9261386.4,
-  "max_drawdown_pct": 8.532,
-  "costs_quote": 1283247.55,
+  "net_pnl_quote": -739378.86,
+  "return_pct": -7.394,
+  "final_equity": 9260621.12,
+  "max_drawdown_pct": 8.539,
+  "costs_quote": 1283207.97,
   "exits": {
    "Stop Loss": 39,
    "Take Profit": 6,
@@ -235,46 +235,46 @@
   "trades": 33,
   "trades_per_day": 0.33,
   "signals": 33,
-  "win_rate_pct": 45.45,
-  "avg_win_pct": 1.5017,
-  "avg_loss_pct": -3.3582,
-  "expectancy_pct": -1.1492,
-  "expectancy_quote": -17959.47,
-  "profit_factor": 0.369,
-  "net_pnl_quote": -592662.57,
-  "return_pct": -5.927,
-  "final_equity": 9407337.42,
-  "max_drawdown_pct": 6.71,
-  "costs_quote": 458023.68,
+  "win_rate_pct": 36.36,
+  "avg_win_pct": 1.4772,
+  "avg_loss_pct": -3.0626,
+  "expectancy_pct": -1.4118,
+  "expectancy_quote": -21492.64,
+  "profit_factor": 0.273,
+  "net_pnl_quote": -709257.03,
+  "return_pct": -7.093,
+  "final_equity": 9290742.96,
+  "max_drawdown_pct": 7.142,
+  "costs_quote": 448620.62,
   "exits": {
-   "Stop Loss": 17,
-   "Trailing Stop": 16
+   "Stop Loss": 18,
+   "Trailing Stop": 15
   },
   "blocked": {
-   "max_open": 34458,
+   "max_open": 29858,
    "exposure": 0,
-   "cooldown": 525,
+   "cooldown": 585,
    "extended": 0,
-   "duplicate": 48275,
+   "duplicate": 45209,
    "min_notional": 0,
    "halted": 0,
    "no_cash": 0
   },
   "halted": false,
   "open_at_end": 0,
-  "avg_hold_min": 1463.9
+  "avg_hold_min": 1371.0
  },
  "buy_and_hold": {
   "ADA": {
-   "return_pct": -18.23,
+   "return_pct": -18.26,
    "max_drawdown_pct": 44.64
   },
   "BTC": {
-   "return_pct": 4.08,
+   "return_pct": 4.09,
    "max_drawdown_pct": 25.83
   },
   "DOGE": {
-   "return_pct": -18.42,
+   "return_pct": -18.21,
    "max_drawdown_pct": 35.2
   },
   "ETH": {
@@ -286,7 +286,7 @@
    "max_drawdown_pct": 30.94
   },
   "XRP": {
-   "return_pct": 3.6,
+   "return_pct": 3.74,
    "max_drawdown_pct": 28.07
   }
  },
@@ -543,8 +543,8 @@
    "stop": 2.0,
    "trades": 67,
    "win_rate": 43.28,
-   "expectancy_pct": 0.1698,
-   "return_pct": 1.859,
+   "expectancy_pct": 0.1693,
+   "return_pct": 1.853,
    "max_dd_pct": 12.023
   },
   {
@@ -554,9 +554,9 @@
    "stop": 3.0,
    "trades": 56,
    "win_rate": 51.79,
-   "expectancy_pct": 0.1457,
-   "return_pct": 0.749,
-   "max_dd_pct": 12.088
+   "expectancy_pct": 0.1451,
+   "return_pct": 0.743,
+   "max_dd_pct": 12.093
   },
   {
    "threshold": 0.5,
@@ -576,9 +576,9 @@
    "stop": 3.0,
    "trades": 56,
    "win_rate": 44.64,
-   "expectancy_pct": 0.5059,
-   "return_pct": 3.728,
-   "max_dd_pct": 12.035
+   "expectancy_pct": 0.5054,
+   "return_pct": 3.724,
+   "max_dd_pct": 12.039
   },
   {
    "threshold": 0.5,
@@ -587,9 +587,9 @@
    "stop": 2.0,
    "trades": 57,
    "win_rate": 33.33,
-   "expectancy_pct": -1.3927,
-   "return_pct": -11.798,
-   "max_dd_pct": 12.007
+   "expectancy_pct": -1.3933,
+   "return_pct": -11.804,
+   "max_dd_pct": 12.013
   },
   {
    "threshold": 0.5,
@@ -675,9 +675,9 @@
    "stop": 2.0,
    "trades": 53,
    "win_rate": 60.38,
-   "expectancy_pct": -0.3176,
+   "expectancy_pct": -0.3177,
    "return_pct": -3.232,
-   "max_dd_pct": 3.985
+   "max_dd_pct": 3.986
   },
   {
    "threshold": 1.5,
@@ -686,9 +686,9 @@
    "stop": 3.0,
    "trades": 50,
    "win_rate": 64.0,
-   "expectancy_pct": -0.5225,
-   "return_pct": -4.207,
-   "max_dd_pct": 4.972
+   "expectancy_pct": -0.5226,
+   "return_pct": -4.208,
+   "max_dd_pct": 4.973
   },
   {
    "threshold": 1.5,
@@ -721,8 +721,8 @@
    "stop": 2.0,
    "trades": 67,
    "win_rate": 43.28,
-   "expectancy_pct": 0.1698,
-   "return_pct": 1.859,
+   "expectancy_pct": 0.1693,
+   "return_pct": 1.853,
    "max_dd_pct": 12.023
   },
   {
@@ -732,9 +732,9 @@
    "stop": 3.0,
    "trades": 56,
    "win_rate": 51.79,
-   "expectancy_pct": 0.1457,
-   "return_pct": 0.749,
-   "max_dd_pct": 12.088
+   "expectancy_pct": 0.1451,
+   "return_pct": 0.743,
+   "max_dd_pct": 12.093
   },
   {
    "threshold": 0.5,
@@ -743,9 +743,9 @@
    "stop": 3.0,
    "trades": 56,
    "win_rate": 44.64,
-   "expectancy_pct": 0.5059,
-   "return_pct": 3.728,
-   "max_dd_pct": 12.035
+   "expectancy_pct": 0.5054,
+   "return_pct": 3.724,
+   "max_dd_pct": 12.039
   },
   {
    "threshold": 1.5,

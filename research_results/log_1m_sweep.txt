@@ -1,29 +1,29 @@
 == loading 1m bars from research_data
-  loaded AAVE: 145096 bars (1m)
-  loaded ADA: 145099 bars (1m)
-  loaded ALGO: 145096 bars (1m)
-  loaded ATOM: 145097 bars (1m)
-  loaded AVAX: 145098 bars (1m)
-  loaded BCH: 145097 bars (1m)
-  loaded BTC: 145100 bars (1m)
-  loaded DOGE: 145099 bars (1m)
-  loaded DOT: 145098 bars (1m)
-  loaded ETH: 145100 bars (1m)
-  loaded FIL: 145097 bars (1m)
-  loaded LINK: 145098 bars (1m)
-  loaded LTC: 145098 bars (1m)
-  loaded NEAR: 145097 bars (1m)
-  loaded SOL: 145099 bars (1m)
-  loaded TRX: 145097 bars (1m)
-  loaded UNI: 145096 bars (1m)
-  loaded XRP: 145099 bars (1m)
+  loaded AAVE: 145088 bars (1m)
+  loaded ADA: 145090 bars (1m)
+  loaded ALGO: 145087 bars (1m)
+  loaded ATOM: 145088 bars (1m)
+  loaded AVAX: 145090 bars (1m)
+  loaded BCH: 145089 bars (1m)
+  loaded BTC: 145091 bars (1m)
+  loaded DOGE: 145090 bars (1m)
+  loaded DOT: 145089 bars (1m)
+  loaded ETH: 145091 bars (1m)
+  loaded FIL: 145088 bars (1m)
+  loaded LINK: 145090 bars (1m)
+  loaded LTC: 145089 bars (1m)
+  loaded NEAR: 145088 bars (1m)
+  loaded SOL: 145091 bars (1m)
+  loaded TRX: 145089 bars (1m)
+  loaded UNI: 145088 bars (1m)
+  loaded XRP: 145090 bars (1m)
   filtered to ['ADA', 'BTC', 'DOGE', 'ETH', 'SOL', 'XRP']
 
 == file_defaults: trades=46 win=56.52 expectancy=-0.5429% return=-4.211% dd=5.439% pf=0.556 halted=False
 
 == balanced_preset: trades=14 win=21.43 expectancy=-0.1564% return=0.153% dd=10.075% pf=1.018 halted=True
 
-== conservative_preset: trades=85 win=50.59 expectancy=-0.4815% return=-7.386% dd=8.532% pf=0.556 halted=False
+== conservative_preset: trades=85 win=50.59 expectancy=-0.482% return=-7.394% dd=8.539% pf=0.556 halted=False
 
 == file_defaults_zero_cost: trades=46 win=67.39 expectancy=0.0466% return=0.057% dd=2.37% pf=1.008 halted=False
 
@@ -31,9 +31,9 @@
 
 == balanced_preset_paper_stops: trades=14 win=14.29 expectancy=-2.7353% return=-8.251% dd=10.186% pf=0.112 halted=True
 
-== random_entries (rate=2.642e-05, target~46): trades=33 win=45.45 expectancy=-1.1492% return=-5.927%
+== random_entries (rate=2.642e-05, target~46): trades=33 win=36.36 expectancy=-1.4118% return=-7.093%
 
-== buy & hold: {'ADA': {'return_pct': -18.23, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.08, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.42, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.6, 'max_drawdown_pct': 28.07}}
+== buy & hold: {'ADA': {'return_pct': -18.26, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.09, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.21, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.74, 'max_drawdown_pct': 28.07}}
 
 == forward study: events=241
    h1m: {'mean_pct': -0.0329, 'median_pct': -0.0481, 'pct_positive': 43.57, 'mean_mfe_pct': 0.3708, 'mean_mae_pct': -0.4177, 'prob_mfe_ge_stop_before_mae': 3.73}
@@ -43,10 +43,10 @@
    h60m: {'mean_pct': -0.0493, 'median_pct': 0.3187, 'pct_positive': 59.75, 'mean_mfe_pct': 1.7113, 'mean_mae_pct': -2.3427, 'prob_mfe_ge_stop_before_mae': 41.08}
 
 == sweep best by expectancy:
-   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 3.0, 'trades': 56, 'win_rate': 44.64, 'expectancy_pct': 0.5059, 'return_pct': 3.728, 'max_dd_pct': 12.035}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 1.2, 'stop': 3.0, 'trades': 56, 'win_rate': 44.64, 'expectancy_pct': 0.5054, 'return_pct': 3.724, 'max_dd_pct': 12.039}
    {'threshold': 1.5, 'lookback': 2, 'trail': 0.6, 'stop': 3.0, 'trades': 23, 'win_rate': 82.61, 'expectancy_pct': 0.3503, 'return_pct': 1.201, 'max_dd_pct': 2.734}
-   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 67, 'win_rate': 43.28, 'expectancy_pct': 0.1698, 'return_pct': 1.859, 'max_dd_pct': 12.023}
-   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 3.0, 'trades': 56, 'win_rate': 51.79, 'expectancy_pct': 0.1457, 'return_pct': 0.749, 'max_dd_pct': 12.088}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 67, 'win_rate': 43.28, 'expectancy_pct': 0.1693, 'return_pct': 1.853, 'max_dd_pct': 12.023}
+   {'threshold': 0.5, 'lookback': 2, 'trail': 0.6, 'stop': 3.0, 'trades': 56, 'win_rate': 51.79, 'expectancy_pct': 0.1451, 'return_pct': 0.743, 'max_dd_pct': 12.093}
    {'threshold': 1.5, 'lookback': 2, 'trail': 0.6, 'stop': 2.0, 'trades': 23, 'win_rate': 73.91, 'expectancy_pct': 0.1064, 'return_pct': 0.45, 'max_dd_pct': 2.302}
    positive cells (>=20 trades): 6/16
 

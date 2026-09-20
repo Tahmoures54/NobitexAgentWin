@@ -21,24 +21,24 @@
   "XRP"
  ],
  "bars_loaded": {
-  "AAVE": 145096,
-  "ADA": 145099,
-  "ALGO": 145096,
-  "ATOM": 145097,
-  "AVAX": 145098,
-  "BCH": 145097,
-  "BTC": 145100,
-  "DOGE": 145099,
-  "DOT": 145098,
-  "ETH": 145100,
-  "FIL": 145097,
-  "LINK": 145098,
-  "LTC": 145098,
-  "NEAR": 145097,
-  "SOL": 145099,
-  "TRX": 145097,
-  "UNI": 145096,
-  "XRP": 145099
+  "AAVE": 145088,
+  "ADA": 145090,
+  "ALGO": 145087,
+  "ATOM": 145088,
+  "AVAX": 145090,
+  "BCH": 145089,
+  "BTC": 145091,
+  "DOGE": 145090,
+  "DOT": 145089,
+  "ETH": 145091,
+  "FIL": 145088,
+  "LINK": 145090,
+  "LTC": 145089,
+  "NEAR": 145088,
+  "SOL": 145091,
+  "TRX": 145089,
+  "UNI": 145088,
+  "XRP": 145090
  },
  "file_defaults": {
   "label": "file_defaults",
@@ -48,15 +48,15 @@
   "signals": 102,
   "win_rate_pct": 46.08,
   "avg_win_pct": 1.3641,
-  "avg_loss_pct": -2.6915,
-  "expectancy_pct": -0.8228,
-  "expectancy_quote": -12253.86,
+  "avg_loss_pct": -2.692,
+  "expectancy_pct": -0.823,
+  "expectancy_quote": -12257.27,
   "profit_factor": 0.431,
-  "net_pnl_quote": -1249893.74,
-  "return_pct": -12.499,
-  "final_equity": 8750106.21,
-  "max_drawdown_pct": 12.008,
-  "costs_quote": 1353098.55,
+  "net_pnl_quote": -1250241.36,
+  "return_pct": -12.502,
+  "final_equity": 8749758.61,
+  "max_drawdown_pct": 12.011,
+  "costs_quote": 1353090.45,
   "exits": {
    "Open at end": 1,
    "Stop Loss": 38,
@@ -156,15 +156,15 @@
   "trades_per_day": 1.74,
   "signals": 175,
   "win_rate_pct": 58.86,
-  "avg_win_pct": 1.6588,
-  "avg_loss_pct": -3.0,
-  "expectancy_pct": -0.258,
-  "expectancy_quote": -4289.98,
+  "avg_win_pct": 1.6582,
+  "avg_loss_pct": -3.0011,
+  "expectancy_pct": -0.2588,
+  "expectancy_quote": -4302.66,
   "profit_factor": 0.778,
-  "net_pnl_quote": -750746.47,
-  "return_pct": -7.507,
-  "final_equity": 9249253.47,
-  "max_drawdown_pct": 12.003,
+  "net_pnl_quote": -752964.71,
+  "return_pct": -7.53,
+  "final_equity": 9247035.28,
+  "max_drawdown_pct": 12.018,
   "costs_quote": 0.0,
   "exits": {
    "Open at end": 1,
@@ -176,7 +176,7 @@
    "exposure": 0,
    "cooldown": 2310,
    "extended": 53,
-   "duplicate": 56496,
+   "duplicate": 56495,
    "min_notional": 0,
    "halted": 1,
    "no_cash": 0
@@ -260,46 +260,46 @@
  "random_entries": {
   "label": "random_entries",
   "window_days": 100.76,
-  "trades": 51,
-  "trades_per_day": 0.51,
-  "signals": 51,
-  "win_rate_pct": 58.82,
-  "avg_win_pct": 1.3147,
-  "avg_loss_pct": -3.0837,
-  "expectancy_pct": -0.4964,
-  "expectancy_quote": -7303.54,
-  "profit_factor": 0.605,
-  "net_pnl_quote": -372480.72,
-  "return_pct": -3.725,
-  "final_equity": 9627519.29,
-  "max_drawdown_pct": 5.131,
-  "costs_quote": 673630.02,
+  "trades": 57,
+  "trades_per_day": 0.57,
+  "signals": 57,
+  "win_rate_pct": 52.63,
+  "avg_win_pct": 1.299,
+  "avg_loss_pct": -2.5622,
+  "expectancy_pct": -0.53,
+  "expectancy_quote": -7985.82,
+  "profit_factor": 0.564,
+  "net_pnl_quote": -455191.57,
+  "return_pct": -4.552,
+  "final_equity": 9544808.42,
+  "max_drawdown_pct": 5.955,
+  "costs_quote": 769982.84,
   "exits": {
    "Open at end": 1,
-   "Stop Loss": 18,
-   "Trailing Stop": 32
+   "Stop Loss": 19,
+   "Trailing Stop": 37
   },
   "blocked": {
-   "max_open": 583881,
+   "max_open": 396492,
    "exposure": 0,
-   "cooldown": 650,
+   "cooldown": 800,
    "extended": 0,
-   "duplicate": 130752,
+   "duplicate": 100832,
    "min_notional": 0,
    "halted": 0,
    "no_cash": 0
   },
   "halted": false,
   "open_at_end": 1,
-  "avg_hold_min": 2564.7
+  "avg_hold_min": 1770.0
  },
  "buy_and_hold": {
   "AAVE": {
-   "return_pct": 45.08,
+   "return_pct": 45.1,
    "max_drawdown_pct": 34.88
   },
   "ADA": {
-   "return_pct": -18.23,
+   "return_pct": -18.26,
    "max_drawdown_pct": 44.64
   },
   "ALGO": {
@@ -307,11 +307,11 @@
    "max_drawdown_pct": 45.62
   },
   "ATOM": {
-   "return_pct": -29.46,
+   "return_pct": -29.33,
    "max_drawdown_pct": 47.1
   },
   "AVAX": {
-   "return_pct": -20.91,
+   "return_pct": -20.88,
    "max_drawdown_pct": 40.56
   },
   "BCH": {
@@ -319,11 +319,11 @@
    "max_drawdown_pct": 49.97
   },
   "BTC": {
-   "return_pct": 4.08,
+   "return_pct": 4.09,
    "max_drawdown_pct": 25.83
   },
   "DOGE": {
-   "return_pct": -18.42,
+   "return_pct": -18.21,
    "max_drawdown_pct": 35.2
   },
   "DOT": {
@@ -335,19 +335,19 @@
    "max_drawdown_pct": 29.56
   },
   "FIL": {
-   "return_pct": -29.2,
+   "return_pct": -29.27,
    "max_drawdown_pct": 44.15
   },
   "LINK": {
-   "return_pct": 21.11,
+   "return_pct": 21.27,
    "max_drawdown_pct": 28.23
   },
   "LTC": {
-   "return_pct": -7.82,
+   "return_pct": -7.84,
    "max_drawdown_pct": 27.38
   },
   "NEAR": {
-   "return_pct": -7.55,
+   "return_pct": -7.64,
    "max_drawdown_pct": 49.94
   },
   "SOL": {
@@ -359,11 +359,11 @@
    "max_drawdown_pct": 17.48
   },
   "UNI": {
-   "return_pct": 55.25,
+   "return_pct": 55.34,
    "max_drawdown_pct": 34.71
   },
   "XRP": {
-   "return_pct": 3.6,
+   "return_pct": 3.74,
    "max_drawdown_pct": 28.07
   }
  },

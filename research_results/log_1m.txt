@@ -1,38 +1,38 @@
 == loading 1m bars from research_data
-  loaded AAVE: 145096 bars (1m)
-  loaded ADA: 145099 bars (1m)
-  loaded ALGO: 145096 bars (1m)
-  loaded ATOM: 145097 bars (1m)
-  loaded AVAX: 145098 bars (1m)
-  loaded BCH: 145097 bars (1m)
-  loaded BTC: 145100 bars (1m)
-  loaded DOGE: 145099 bars (1m)
-  loaded DOT: 145098 bars (1m)
-  loaded ETH: 145100 bars (1m)
-  loaded FIL: 145097 bars (1m)
-  loaded LINK: 145098 bars (1m)
-  loaded LTC: 145098 bars (1m)
-  loaded NEAR: 145097 bars (1m)
-  loaded SOL: 145099 bars (1m)
-  loaded TRX: 145097 bars (1m)
-  loaded UNI: 145096 bars (1m)
-  loaded XRP: 145099 bars (1m)
+  loaded AAVE: 145088 bars (1m)
+  loaded ADA: 145090 bars (1m)
+  loaded ALGO: 145087 bars (1m)
+  loaded ATOM: 145088 bars (1m)
+  loaded AVAX: 145090 bars (1m)
+  loaded BCH: 145089 bars (1m)
+  loaded BTC: 145091 bars (1m)
+  loaded DOGE: 145090 bars (1m)
+  loaded DOT: 145089 bars (1m)
+  loaded ETH: 145091 bars (1m)
+  loaded FIL: 145088 bars (1m)
+  loaded LINK: 145090 bars (1m)
+  loaded LTC: 145089 bars (1m)
+  loaded NEAR: 145088 bars (1m)
+  loaded SOL: 145091 bars (1m)
+  loaded TRX: 145089 bars (1m)
+  loaded UNI: 145088 bars (1m)
+  loaded XRP: 145090 bars (1m)
 
-== file_defaults: trades=102 win=46.08 expectancy=-0.8228% return=-12.499% dd=12.008% pf=0.431 halted=True
+== file_defaults: trades=102 win=46.08 expectancy=-0.823% return=-12.502% dd=12.011% pf=0.431 halted=True
 
 == balanced_preset: trades=41 win=48.78 expectancy=-0.5503% return=-4.653% dd=10.033% pf=0.85 halted=True
 
 == conservative_preset: trades=92 win=47.83 expectancy=-0.7036% return=-12.849% dd=12.032% pf=0.448 halted=True
 
-== file_defaults_zero_cost: trades=175 win=58.86 expectancy=-0.258% return=-7.507% dd=12.003% pf=0.778 halted=True
+== file_defaults_zero_cost: trades=175 win=58.86 expectancy=-0.2588% return=-7.53% dd=12.018% pf=0.778 halted=True
 
 == balanced_preset_zero_cost: trades=100 win=50.0 expectancy=0.2667% return=-0.343% dd=10.079% pf=0.993 halted=True
 
 == balanced_preset_paper_stops: trades=39 win=48.72 expectancy=-1.6613% return=-15.562% dd=10.302% pf=0.493 halted=True
 
-== random_entries (rate=1.953e-05, target~102): trades=51 win=58.82 expectancy=-0.4964% return=-3.725%
+== random_entries (rate=1.953e-05, target~102): trades=57 win=52.63 expectancy=-0.53% return=-4.552%
 
-== buy & hold: {'AAVE': {'return_pct': 45.08, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.23, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -23.02, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.46, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.91, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.66, 'max_drawdown_pct': 49.97}, 'BTC': {'return_pct': 4.08, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.42, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.64, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -29.2, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.11, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.82, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -7.55, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.05, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 55.25, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.6, 'max_drawdown_pct': 28.07}}
+== buy & hold: {'AAVE': {'return_pct': 45.1, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.26, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -23.02, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.33, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.88, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.66, 'max_drawdown_pct': 49.97}, 'BTC': {'return_pct': 4.09, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.21, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.64, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -29.27, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.27, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.84, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -7.64, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.05, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 55.34, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.74, 'max_drawdown_pct': 28.07}}
 
 == forward study: events=1168
    h1m: {'mean_pct': -0.0439, 'median_pct': -0.0522, 'pct_positive': 41.44, 'mean_mfe_pct': 0.3087, 'mean_mae_pct': -0.3432, 'prob_mfe_ge_stop_before_mae': 2.74}
