@@ -187,6 +187,7 @@ class SignalTracker:
 
         self._skip_counts: "collections.Counter[str]" = collections.Counter()
         self._last_monitor_log_ts = 0.0
+        self._last_cycle_diagnostics: Dict[str, Any] = {}
 
         self._load_config()
         self._validate_config_ranges()
@@ -2679,11 +2680,49 @@ class SignalTracker:
             except sqlite3.Error as e:
                 logger.error("DB error in process_cycle: %s", e)
 
+        skip_counts = dict(self._skip_counts)
+        self._last_cycle_diagnostics = {
+            "rows_seen": len(market_data) if isinstance(market_data, list) else 0,
+            "entry_signal_rows": sum(
+                1 for item in market_data
+                if isinstance(item, dict)
+                and any(
+                    token in str(item.get("Signal", item.get("signal", ""))).lower()
+                    for token in _ENTRY_SIGNAL_TOKENS
+                )
+            ) if isinstance(market_data, list) else 0,
+            "opened": int(stats["opened"]),
+            "closed": int(stats["closed"]),
+            "pending": int(stats["pending"]),
+            "cancelled": int(stats["cancelled"]),
+            "halted": int(stats["halted"]),
+            "resized": int(stats["resized"]),
+            "skip_counts": skip_counts,
+            "trading_halted": bool(self.trading_halted),
+            "halt_reason": str(self.halt_reason or ""),
+            "allow_new_entries": bool(getattr(self, "allow_new_entries", True)),
+            "auto_trading_enabled": bool(self.auto_trading_enabled),
+            "open_trades": len(self.get_open_trades()),
+            "max_open_trades": int(self.max_open_trades),
+            "max_new_entries_per_cycle": int(self.max_new_entries_per_cycle),
+            "mode": str(self.mode),
+        }
         if self._skip_counts or candidates_count:
-            logger.info("Cycle summary | candidates=%d opened=%d closed=%d pending=%d skipped=%s",
-                        candidates_count, stats["opened"], stats["closed"], stats["pending"],
-                        dict(self._skip_counts) if self._skip_counts else {})
+            logger.info(
+                "Cycle summary | rows=%d entry_signals=%d opened=%d closed=%d pending=%d "
+                "halted=%d skipped=%s",
+                self._last_cycle_diagnostics["rows_seen"],
+                self._last_cycle_diagnostics["entry_signal_rows"],
+                stats["opened"], stats["closed"], stats["pending"], stats["halted"],
+                skip_counts,
+            )
         return stats
+
+    def get_last_entry_diagnostics(self) -> Dict[str, Any]:
+        """Return the last entry-cycle decision breakdown for UI/operator logs."""
+        data = dict(self._last_cycle_diagnostics or {})
+        data["skip_counts"] = dict(data.get("skip_counts") or {})
+        return data
 
     def process_new_signals(self, data) -> Dict[str, int]:
         out = {"opened": 0, "closed": 0, "cancelled": 0, "expired": 0,
