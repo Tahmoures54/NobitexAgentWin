@@ -18,8 +18,14 @@ of 1-minute data for 18 markets; every realistic arm is still net negative).
 
 ### Exits
 - `max_hold_minutes` time stop (per-trade column honoured, else the tracker
-  setting); the shipped profile uses 120 minutes because the study showed
-  positions otherwise sitting open for days.
+  setting). The shipped profile uses **360 minutes**, chosen by a three-level
+  sensitivity run (120 / 360 / uncapped, 100 days x 18 markets) rather than by
+  taste: uncapped, 62% of all swept trades are held longer than 2 hours (77% of
+  the balanced geometry), so a 120-minute cap pre-empts the trailing stop and
+  becomes the dominant exit - 46 of 61 exits on 1m data, 6 of 8 at the live 10s
+  cadence. At 360 minutes the cap binds on ~10-38% of trades instead and still
+  closes the multi-day positions the time stop exists for. No level is
+  profitable; `PROFITABILITY_ANALYSIS.md` §11-6 has the table.
 - Expectancy guard: when the mean `pnl_pct_net` of the last
   `expectancy_guard_trades` closed trades is below
   `expectancy_guard_min_expectancy_pct`, new entries stop and `halt_reason`
@@ -43,13 +49,40 @@ of 1-minute data for 18 markets; every realistic arm is still net negative).
 
 ### Test tooling
 - `tools/nobitex_preflight.py`: offline cost geometry check + live Nobitex
-  spread/cost-guard report per configured pair.
+  spread/cost-guard report per configured pair. It now prints the configured
+  time stop and fails (🔴) when `max_hold_minutes` is 0, because uncapped holds
+  averaged 1.2-2.1 days in the study.
 - `NOBITEX_TEST_READINESS.md`: Persian run book for the paper test.
 - Research pipeline: s/ms/µs epoch normalisation, bar-step sanity warning,
   live-faithful exit model (previous-scan stop level, gap-aware fills,
   profit-gated ratchet), trailing (activation, distance) pairs in the sweep,
   no-trailing arms, and an out-of-sample half-split check for the best cells.
-- Tests: 273 passed.
+- Research pipeline, correctness pass — two defects that had been flattering the
+  results: positions still open at a drawdown halt were marked at the last bar of
+  the *whole window* instead of the halt bar (48 of 96 sweep cells halted, so a
+  position opened on day 20 and halted on day 40 was booked at the day-100
+  price), and the `max_hold_minutes` time stop this release adds to the bot was
+  not modelled at all. Leftovers are now marked at the halt bar and reported as
+  `Halted open`, runs report `traded_days` next to `window_days`, the engine
+  market-sells once a position exceeds `max_hold_minutes` (an intrabar stop still
+  wins the scan), and `--time-stop` applies it to every arm and the whole grid.
+- Research pipeline, reporting: out-of-sample candidates are ranked among cells
+  with >=20 trades that never tripped their halt (raw-expectancy ranking used to
+  surface n=6 cells), each cell reports `robust` = positive in both halves with
+  >=10 trades each, and every arm/cell carries a `hold_hist_min` histogram so
+  "how often would a cap bind?" is measured instead of argued.
+- Net effect on the published evidence: positive sweep cells with >=20 trades
+  8 -> 4, and the balanced preset's zero-cost gross edge +0.27% -> +0.04% per
+  trade (~1/20 of the 0.80% round trip). Numbers quoted before this pass should
+  not be reused.
+- Migration precedence is now tested as well as documented: a pre-v11 config
+  adopts `PROFITABILITY_GUARD_DEFAULTS` only for keys it does not already set,
+  so an operator's explicit `max_hold_minutes` (including `0` = no time stop)
+  survives the v11 migration.
+- Tests: 288 passed, including 5 engine regressions
+  (`tests/test_research_backtest_engine.py`), 7 invariants on the shipped
+  profile's economics (`tests/test_shipped_profile_economics.py`) and 3 on
+  migration precedence (`tests/test_bot_config_regime.py`).
 
 ## v6.9.0 — Profitability-aware adaptive strategy switching
 
