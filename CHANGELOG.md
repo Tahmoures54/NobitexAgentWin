@@ -79,10 +79,12 @@ of 1-minute data for 18 markets; every realistic arm is still net negative).
   adopts `PROFITABILITY_GUARD_DEFAULTS` only for keys it does not already set,
   so an operator's explicit `max_hold_minutes` (including `0` = no time stop)
   survives the v11 migration.
-- Tests: 288 passed, including 5 engine regressions
-  (`tests/test_research_backtest_engine.py`), 7 invariants on the shipped
-  profile's economics (`tests/test_shipped_profile_economics.py`) and 3 on
-  migration precedence (`tests/test_bot_config_regime.py`).
+- Tests: 289 passed, including 5 engine regressions
+  (`tests/test_research_backtest_engine.py`), 8 invariants on the shipped
+  profile's economics - among them that `apply_to_tracker()` really carries all
+  seven guards into the trading loop, the "dead config key" bug class this
+  release fixes - and 3 on migration precedence
+  (`tests/test_bot_config_regime.py`).
 
 ## v6.9.0 — Profitability-aware adaptive strategy switching
 
