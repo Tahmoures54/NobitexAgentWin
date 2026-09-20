@@ -22,7 +22,7 @@ def _client_for_snapshot():
     candles = []
     price = 100.0
     for i in range(60):
-        close = price + i * 0.5
+        close = price + i * 0.5 + (1.0 if i % 2 == 0 else -0.5)
         candles.append({
             "timestamp": i,
             "open": close - 0.2,
