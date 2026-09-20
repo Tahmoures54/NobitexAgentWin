@@ -64,7 +64,7 @@ jobs:
         continue-on-error: true
         run: |
           python tools/research/profitability_backtest.py \
-            --data-dir research_data --bars 1m --sweep \
+            --data-dir research_data --bars 1m --sweep --sweep-cells full \
             --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" \
             --json-out research_data/results_1m_sweep.json 2>&1 | tee research_data/log_1m_sweep.txt | tail -40
 

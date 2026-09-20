@@ -139,6 +139,21 @@ def load_bars(data_dir: str, kind: str) -> Dict[str, Bars]:
     return out
 
 
+def split_bars(data: Dict[str, "Bars"], half: int) -> Dict[str, "Bars"]:
+    """First (0) or second (1) half of each symbol's window, by timestamp."""
+    out: Dict[str, Bars] = {}
+    for sym, b in data.items():
+        if len(b) < 20:
+            continue
+        mid = b.t[len(b.t) // 2]
+        rows = [[b.t[i], b.o[i], b.h[i], b.l[i], b.c[i], b.v[i]] for i in range(len(b))
+                if (b.t[i] < mid if half == 0 else b.t[i] >= mid)]
+        if rows:
+            out[sym] = Bars(sym, rows)
+    return out
+
+
+
 # ── engine ───────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -611,6 +626,41 @@ def main() -> int:
                     and (r["expectancy_pct"] or 0) > 0]
         report["sweep_positive_cells"] = positive
         print(f"   positive cells (>=20 trades): {len(positive)}/{len(grid)}")
+
+        # Out-of-sample check: the best cells are re-run on each half of the
+        # window.  A geometry that only works on the half it was picked from is
+        # curve-fitting, not an edge.
+        halves = {0: split_bars(data, 0), 1: split_bars(data, 1)}
+        oos = []
+        for row in sorted(grid, key=lambda r: -(r["expectancy_pct"] or -999))[:5]:
+            cell = {"cell": {k: row[k] for k in ("threshold", "lookback",
+                                                 "trail_activation", "trail_distance",
+                                                 "stop")},
+                    "full_window": {"trades": row["trades"],
+                                    "expectancy_pct": row["expectancy_pct"]}}
+            print(f"\n-- out-of-sample check {cell['cell']}")
+            for half in (0, 1):
+                params = base.scaled(
+                    min_observed_move_pct=row["threshold"],
+                    lookback_scans=row["lookback"],
+                    trail_activation_pct=row["trail_activation"],
+                    trail_distance_pct=row["trail_distance"],
+                    stop_loss_pct=row["stop"])
+                res = Engine(halves[half], params,
+                             label=f"half{half + 1}").run()
+                cell[f"half{half + 1}"] = {"trades": res["trades"],
+                                           "expectancy_pct": res["expectancy_pct"],
+                                           "return_pct": res["return_pct"],
+                                           "halted": res["halted"]}
+                print(f"   half{half + 1}: trades={res['trades']} "
+                      f"expectancy={res['expectancy_pct']}% return={res['return_pct']}% "
+                      f"halted={res['halted']}", flush=True)
+            cell["both_halves_positive"] = all(
+                (cell[f"half{h}"]["expectancy_pct"] or -9) > 0 for h in (1, 2))
+            oos.append(cell)
+        report["sweep_out_of_sample"] = oos
+        print(f"\n   cells positive in BOTH halves: "
+              f"{sum(1 for c in oos if c['both_halves_positive'])}/{len(oos)}")
 
     if args.json_out:
         with open(args.json_out, "w") as fh:
