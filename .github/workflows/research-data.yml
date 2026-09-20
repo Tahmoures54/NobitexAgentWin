@@ -19,8 +19,11 @@ on:
         description: 'days of 10s bars'
         default: '7'
       symbols:
-        description: 'symbol basket'
-        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK'
+        description: '1m symbol basket'
+        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO,ETC,XLM,ICP,APT,ARB,SUI'
+      tick_symbols:
+        description: '1s symbol basket (10s bars)'
+        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,TRX,DOT'
 
 permissions:
   contents: write
@@ -28,7 +31,7 @@ permissions:
 jobs:
   study:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -43,14 +46,15 @@ jobs:
         env:
           DAYS: ${{ github.event.inputs.days || '90' }}
           TICK_DAYS: ${{ github.event.inputs.tick_days || '7' }}
-          SYMBOLS: ${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK' }}
+          SYMBOLS: ${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO,ETC,XLM,ICP,APT,ARB,SUI' }}
+          TICK_SYMBOLS: ${{ github.event.inputs.tick_symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,TRX,DOT' }}
         run: |
           mkdir -p research_data
           python -u tools/research/fetch_market_data.py \
-            --days "$DAYS" --symbols "$SYMBOLS" --skip-ticks --max-minutes 10 \
+            --days "$DAYS" --symbols "$SYMBOLS" --skip-ticks --max-minutes 14 \
             2>&1 | tee research_data/log_fetch.txt | tail -60
           python -u tools/research/fetch_market_data.py \
-            --days 1 --tick-days "$TICK_DAYS" --symbols BTC,ETH --skip-nobitex --max-minutes 10 \
+            --days 1 --tick-days "$TICK_DAYS" --symbols "$TICK_SYMBOLS" --skip-nobitex --max-minutes 20 \
             2>&1 | tee -a research_data/log_fetch.txt | tail -60 || true
           ls -la research_data
           ls -la research_data || true

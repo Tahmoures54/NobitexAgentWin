@@ -1118,6 +1118,38 @@ def main() -> int:
     report["random_entry_control"] = rnd.stats()
 
     # 5. parameter sweep (entry threshold, trail distance, stop)
+    # 6. how would this scale to the real Nobitex universe (~150 IRT markets)?
+    #    The live scan iterates every IRT market, not just the tested basket.
+    def _scaling(res: SimResult, n_markets: int = 150) -> Dict[str, Any]:
+        st = res.stats()
+        n_sym = max(1, len(res.symbols))
+        if not st["trades"] or res.days <= 0:
+            return {"note": "no trades in this arm"}
+        trades_per_day_per_symbol = st["trades"] / res.days / n_sym
+        avg_notional_frac = statistics.fmean(
+            [t.notional / res.start_equity for t in res.trades]) if res.trades else 0.0
+        exp_frac = (st["expectancy_pct"] or 0.0) / 100.0 * avg_notional_frac
+        implied = trades_per_day_per_symbol * n_markets
+        return {
+            "markets_assumed": n_markets,
+            "tested_symbols": n_sym,
+            "trades_per_day_per_symbol": round(trades_per_day_per_symbol, 4),
+            "signals_per_day_per_symbol": round(res.signals_seen / max(res.days, 1e-9) / n_sym, 3),
+            "implied_trades_per_day": round(implied, 2),
+            "avg_notional_pct_of_equity": round(avg_notional_frac * 100.0, 2),
+            "expectancy_pct_of_notional": st["expectancy_pct"],
+            "implied_daily_equity_drag_pct": round(implied * exp_frac * 100.0, 3),
+            "implied_monthly_equity_drag_pct": round(implied * exp_frac * 100.0 * 30, 2),
+        }
+
+    report["universe_scaling"] = {
+        "file_defaults": _scaling(base if base.label == "file-defaults" else
+                                  Engine(data, p, label="file-defaults", bars_kind=args.bars).run()),
+        "balanced_preset": _scaling(preset),
+    }
+    print("\nuniverse scaling (extrapolated to the full Nobitex IRT market list):")
+    print(json.dumps(report["universe_scaling"], indent=2, default=str))
+
     if args.sweep:
         grid = []
         for thr in (0.5, 1.0, 1.5, 2.0, 3.0):
