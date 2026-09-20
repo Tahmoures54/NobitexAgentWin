@@ -912,11 +912,28 @@ class CryptoScannerApp:
         st.pump_threshold_pct = 0.0
         try:
             result = st.process_new_signals(rows)
-            if result.get("opened") or result.get("pending") or result.get("closed"):
-                logger.info(
-                    "[PAPER][GLOBAL] opened=%s pending=%s closed=%s",
-                    result.get("opened"), result.get("pending"), result.get("closed"),
-                )
+            diag = {}
+            getter = getattr(st, "get_last_entry_diagnostics", None)
+            if callable(getter):
+                try:
+                    diag = getter() or {}
+                except Exception:
+                    diag = {}
+            skips = dict(diag.get("skip_counts") or {})
+            top_skips = sorted(skips.items(), key=lambda kv: kv[1], reverse=True)[:6]
+            logger.info(
+                "[PAPER][DECISION] rows=%d entry_signals=%d opened=%d pending=%d closed=%d "
+                "halted=%s open=%d/%d top_blocks=%s",
+                int(diag.get("rows_seen", len(rows)) or 0),
+                int(diag.get("entry_signal_rows", 0) or 0),
+                int(result.get("opened", 0) or 0),
+                int(result.get("pending", 0) or 0),
+                int(result.get("closed", 0) or 0),
+                bool(diag.get("trading_halted", False)),
+                int(diag.get("open_trades", 0) or 0),
+                int(diag.get("max_open_trades", 0) or 0),
+                top_skips or "-",
+            )
         except Exception as exc:
             logger.warning("[PAPER][GLOBAL] Paper shadow failed: %s", exc)
 
