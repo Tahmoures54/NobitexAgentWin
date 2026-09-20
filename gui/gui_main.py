@@ -123,6 +123,7 @@ from trading.execution_mode import (
     should_run_live_tracker,
 )
 from trading.nobitex_momentum_engine import NobitexMomentumEngine
+from analysis.market_intelligence import calculate_early_mover_score, calculate_signal_intelligence_score
 from trading.regime_detector import (
     RegimeDetector,
     REGIME_PRESETS,
@@ -147,7 +148,7 @@ class CryptoScannerApp:
         "#", "Rank", "Name", "Symbol", "Price", "1h %", "24h %", "7d %",
         "Pullback %", "RSI", "MACD", "BB Width %", "Stoch %K", "Stoch %D",
         "ADX", "Tx Volume", "Active Addr", "Turnover %", "Market Cap",
-        "Signal", "Risk", "AI Win %", "BOT", "LINK", "TV",
+        "Signal", "MI Score", "MI State", "MI Reason", "Risk", "AI Win %", "BOT", "LINK", "TV",
     ]
     _COLS_SIMPLE = [
         "#", "Rank", "Name", "Symbol", "Price", "24h %",
@@ -158,7 +159,7 @@ class CryptoScannerApp:
         "1h %": 70, "24h %": 70, "7d %": 70, "Pullback %": 80,
         "RSI": 60, "MACD": 80, "BB Width %": 80, "Stoch %K": 70,
         "Stoch %D": 70, "ADX": 60, "Tx Volume": 90, "Active Addr": 90,
-        "Turnover %": 80, "Market Cap": 110, "Signal": 100, "Risk": 80,
+        "Turnover %": 80, "Market Cap": 110, "Signal": 100, "MI Score": 75, "MI State": 105, "MI Reason": 230, "Risk": 80,
         "AI Win %": 85, "BOT": 70, "LINK": 60, "TV": 50,
     }
 
@@ -1865,15 +1866,19 @@ class CryptoScannerApp:
         """Fetch deep Nobitex data for pump candidates without blocking Tk."""
         if self._market_intelligence_running or self.trading_bot is None or df.empty:
             return
-        candidates = []
+        ranked = []
         for _, row in df.iterrows():
+            symbol = str(row.get("Symbol", "")).upper()
+            if not symbol:
+                continue
+            score = safe_float(row.get("MI Score")) or 0.0
             signal = str(row.get("Signal", ""))
-            if self._is_pump_signal(signal):
-                candidates.append(str(row.get("Symbol", "")).upper())
-        candidates = [s for s in candidates if s]
+            if score >= 45.0 or self._is_pump_signal(signal):
+                ranked.append((score, 1 if self._is_pump_signal(signal) else 0, symbol))
+        ranked.sort(reverse=True)
+        candidates = [symbol for _, _, symbol in ranked[:12]]
         if not candidates:
             return
-        candidates = candidates[:12]
         self._market_intelligence_running = True
 
         def worker() -> None:
@@ -1884,6 +1889,26 @@ class CryptoScannerApp:
                         symbol, trade_limit=50, candle_limit=60
                     )
                     if isinstance(snapshot, dict):
+                        base_row = {}
+                        try:
+                            matched = df[df["Symbol"].astype(str).str.upper() == symbol]
+                            if not matched.empty:
+                                base_row = matched.iloc[0].to_dict()
+                        except Exception:
+                            pass
+                        early = calculate_early_mover_score(
+                            base_row,
+                            safe_float(base_row.get("ObservedLocalMove (%)")) or 0.0,
+                        )
+                        intelligence = calculate_signal_intelligence_score(
+                            base_row, snapshot, early=early
+                        )
+                        snapshot = dict(snapshot)
+                        snapshot["signal_intelligence_score"] = intelligence.get("score")
+                        snapshot["signal_intelligence_grade"] = intelligence.get("grade")
+                        snapshot["signal_intelligence_coverage"] = intelligence.get("coverage_pct")
+                        snapshot["signal_intelligence_factors"] = intelligence.get("factors", {})
+                        snapshot["signal_intelligence_reasons"] = intelligence.get("reasons", [])
                         snapshots[symbol] = snapshot
                 except Exception as exc:
                     logger.debug("[NOBITEX] Market intelligence failed for %s: %s", symbol, exc)
@@ -1964,6 +1989,9 @@ class CryptoScannerApp:
             "last_trade_price": deep.get("last_trade_price"),
             "trades": deep.get("trades_count"),
             "candles": deep.get("candles_available"),
+            "mi_score": deep.get("signal_intelligence_score", base.get("MI Score")),
+            "mi_grade": deep.get("signal_intelligence_grade", base.get("MI State")),
+            "mi_reasons": deep.get("signal_intelligence_reasons") or str(base.get("MI Reason", "--")),
             "ohlc5_high": (deep.get("ohlc_5m") or {}).get("high"),
             "ohlc5_low": (deep.get("ohlc_5m") or {}).get("low"),
             "ohlc5_volume": (deep.get("ohlc_5m") or {}).get("volume"),
@@ -1979,6 +2007,12 @@ class CryptoScannerApp:
                     text = str(value or "--").upper()
                 elif key == "candles":
                     text = ", ".join(f"{k}:{v}" for k, v in (value or {}).items()) or "--"
+                elif key == "mi_score":
+                    text = self._mi_fmt(value, "", 1)
+                elif key == "mi_grade":
+                    text = str(value or "--")
+                elif key == "mi_reasons":
+                    text = " • ".join(value[:5]) if isinstance(value, list) else str(value or "--")
                 elif key in ("buy_pressure", "sell_pressure", "imbalance", "day_pos",
                              "change24", "momentum1", "momentum5", "momentum15"):
                     text = self._mi_fmt(value, "%")
@@ -2090,6 +2124,15 @@ class CryptoScannerApp:
                 movement_pct = ((current_price - baseline) / baseline) * 100.0
                 local_1h = safe_float(row.get("1h Change (%)"))
                 volume = safe_float(row.get("Volume", 0)) or 0.0
+
+                # Read-only intelligence is calculated before the 3% execution
+                # threshold, so pre-pump markets remain visible to the operator.
+                row_dict = row.to_dict()
+                row_dict["ObservedLocalMove (%)"] = movement_pct
+                early = calculate_early_mover_score(row_dict, movement_pct)
+                df.at[idx, "MI Score"] = early["score"]
+                df.at[idx, "MI State"] = early["state"]
+                df.at[idx, "MI Reason"] = " • ".join(early["reasons"][:3])
 
                 if movement_pct >= pump_threshold:
                     if volume < min_volume_24h:
@@ -2244,6 +2287,9 @@ class CryptoScannerApp:
                 row.get("Active Addresses", "--") or "--",
                 fmt(row.get("Turnover Ratio (%)"), ".2f"),
                 fmt_mcap(row.get("Market Cap")),
+                fmt(row.get("MI Score"), ".1f") if safe_float(row.get("MI Score")) is not None else "--",
+                row.get("MI State", "--"),
+                row.get("MI Reason", "--"),
                 sig, rsk, ai_cell, bot_cell, "🔗", "📈",
             )
             tags = (
