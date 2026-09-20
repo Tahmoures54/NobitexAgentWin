@@ -51,3 +51,20 @@ def test_engine_can_defer_depth_until_execution_layer():
     missing_depth.pop("asks")
     hits=e.evaluate([missing_depth], now=2.0, require_depth=False)
     assert hits and hits[0]["Pair"] == "ABCIRT"
+
+
+def test_engine_carries_nobitex_day_range_context():
+    e=NobitexMomentumEngine(min_observed_move_pct=0.1, pump_threshold_pct=0.1,
+                             min_volume_irt=1.0, min_ask_depth_quote=0.0)
+    first=row()
+    first.update({"Day Open": 98.0, "Day High": 110.0, "Day Low": 90.0})
+    e.evaluate([first], now=1.0)
+    second=row(price=102.0, bid=101.8, ask=102.0)
+    second.update({"Day Open": 98.0, "Day High": 110.0, "Day Low": 90.0})
+    hits=e.evaluate([second], now=2.0, require_depth=False)
+    assert hits
+    assert hits[0]["Day Change (%)"] == 2.0
+    assert hits[0]["Day High"] == 110.0
+    assert hits[0]["Day Low"] == 90.0
+    assert hits[0]["Day Range (%)"] > 0
+    assert 0 < hits[0]["Day Range Position (%)"] < 100
