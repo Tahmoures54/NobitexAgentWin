@@ -1,8 +1,8 @@
 name: Research data (profitability study)
 
-# Runs only for the research tooling. Publishes the (small) result JSON back to
-# the branch so the numbers can be reviewed from a normal checkout; raw market
-# data stays on the runner and is never committed.
+# Fetches public market data on the runner, replays the bot's live rules and
+# publishes the (small) result JSON back to the branch. Market data itself is
+# never committed - only the summary numbers needed to review the study.
 
 on:
   push:
@@ -12,18 +12,12 @@ on:
       - '.github/workflows/research-data.yml'
   workflow_dispatch:
     inputs:
-      days:
-        description: 'days of 1m OHLC'
-        default: '90'
-      tick_days:
-        description: 'days of 10s bars'
-        default: '7'
       symbols:
         description: '1m symbol basket'
-        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO,ETC,XLM,ICP,APT,ARB,SUI'
-      tick_symbols:
-        description: '1s symbol basket (10s bars)'
-        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,TRX,DOT'
+        default: 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO'
+      tick_days:
+        description: 'days of 1s archives (10s bars)'
+        default: '2'
 
 permissions:
   contents: write
@@ -31,7 +25,7 @@ permissions:
 jobs:
   study:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -39,46 +33,41 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install deps
-        run: python -m pip install --quiet --upgrade pip numpy pandas
-
-      - name: Fetch market data
-        env:
-          DAYS: ${{ github.event.inputs.days || '90' }}
-          TICK_DAYS: ${{ github.event.inputs.tick_days || '7' }}
-          SYMBOLS: ${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO,ETC,XLM,ICP,APT,ARB,SUI' }}
-          TICK_SYMBOLS: ${{ github.event.inputs.tick_symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,TRX,DOT' }}
+      - name: Fetch market data (1m archives + 1s archives + Nobitex probe)
         run: |
-          mkdir -p research_data
-          python -u tools/research/fetch_market_data.py \
-            --days "$DAYS" --symbols "$SYMBOLS" --skip-ticks --max-minutes 14 \
-            2>&1 | tee research_data/log_fetch.txt | tail -60
-          python -u tools/research/fetch_market_data.py \
-            --days 1 --tick-days "$TICK_DAYS" --symbols "$TICK_SYMBOLS" --skip-nobitex --max-minutes 20 \
-            2>&1 | tee -a research_data/log_fetch.txt | tail -60 || true
-          ls -la research_data
-          ls -la research_data || true
+          python tools/research/fetch_market_data.py \
+            --out research_data --days 120 --tick-days "${{ github.event.inputs.tick_days || 2 }}" \
+            --symbols "${{ github.event.inputs.symbols || 'BTC,ETH,SOL,XRP,DOGE,ADA,AVAX,LINK,DOT,LTC,BCH,TRX,ATOM,NEAR,FIL,UNI,AAVE,ALGO' }}" \
+            --tick-symbols "BTC,ETH,SOL,XRP"
+          ls -la research_data | head -30
 
-      - name: Backtest — 10s bars, live defaults + sweep
+      - name: Backtest - 10s bars (live cadence) + sweep
         run: |
           python tools/research/profitability_backtest.py \
             --data-dir research_data --bars 10s --sweep \
-            --json-out research_data/results_10s.json 2>&1 | tee research_data/log_10s.txt | tail -400
+            --json-out research_data/results_10s.json 2>&1 | tee research_data/log_10s.txt | tail -60
 
-      - name: Backtest — 1m bars, broad basket + forward-return study
+      - name: Backtest - 1m bars, full basket
+        run: |
+          python tools/research/profitability_backtest.py \
+            --data-dir research_data --bars 1m \
+            --json-out research_data/results_1m.json 2>&1 | tee research_data/log_1m.txt | tail -60
+
+      - name: Backtest - 1m sweep on liquid subset
         run: |
           python tools/research/profitability_backtest.py \
             --data-dir research_data --bars 1m --sweep \
-            --json-out research_data/results_1m.json 2>&1 | tee research_data/log_1m.txt | tail -400
+            --symbols "BTC,ETH,SOL,XRP,DOGE,ADA" \
+            --json-out research_data/results_1m_sweep.json 2>&1 | tee research_data/log_1m_sweep.txt | tail -40
 
-      - name: Publish small result files to the branch
+      - name: Publish results to the branch
         run: |
           git config user.name "research-bot"
           git config user.email "research-bot@users.noreply.github.com"
           mkdir -p research_results
           cp research_data/results_*.json research_data/log_*.txt research_data/fetch_report.json research_results/ 2>/dev/null || true
-          python tools/research/make_sample.py || true
-          du -sh research_results || true
+          python tools/research/trim_results.py
+          du -sh research_results
           git add -f research_results
           git commit -m "chore(research): profitability study results [skip ci]" || echo "nothing to commit"
-          git push || echo "push failed (results remain in this log)"
+          git push || echo "push failed"
