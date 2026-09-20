@@ -191,6 +191,9 @@ class CryptoScannerApp:
         self.filtered_df: pd.DataFrame = pd.DataFrame()
         self.latest_signals: List[Dict[str, Any]] = []
         self.last_global_metrics: Optional[Dict] = None
+        # Read-only Nobitex market-intelligence snapshots shown in the main UI.
+        self.market_intelligence: Dict[str, Dict[str, Any]] = {}
+        self._market_intelligence_running = False
 
         self.trading_bot = None
         self.trading_bot_lock = threading.RLock()
@@ -1858,6 +1861,128 @@ class CryptoScannerApp:
         finally:
             self._refresh_unlock(enable_button=not finished_on_ui)
 
+    def _refresh_market_intelligence_async(self, df: pd.DataFrame) -> None:
+        """Fetch deep Nobitex data for pump candidates without blocking Tk."""
+        if self._market_intelligence_running or self.trading_bot is None or df.empty:
+            return
+        candidates = []
+        for _, row in df.iterrows():
+            signal = str(row.get("Signal", ""))
+            if self._is_pump_signal(signal):
+                candidates.append(str(row.get("Symbol", "")).upper())
+        candidates = [s for s in candidates if s]
+        if not candidates:
+            return
+        candidates = candidates[:12]
+        self._market_intelligence_running = True
+
+        def worker() -> None:
+            snapshots: Dict[str, Dict[str, Any]] = {}
+            for symbol in candidates:
+                try:
+                    snapshot = self.trading_bot.get_market_intelligence(
+                        symbol, trade_limit=50, candle_limit=60
+                    )
+                    if isinstance(snapshot, dict):
+                        snapshots[symbol] = snapshot
+                except Exception as exc:
+                    logger.debug("[NOBITEX] Market intelligence failed for %s: %s", symbol, exc)
+
+            def finish() -> None:
+                self.market_intelligence.update(snapshots)
+                self._market_intelligence_running = False
+                if candidates:
+                    self._show_market_intelligence(candidates[0])
+                if snapshots:
+                    logger.info(
+                        "[NOBITEX] Market Intelligence updated for %d pump candidate(s).",
+                        len(snapshots),
+                    )
+
+            try:
+                self.root.after(0, finish)
+            except Exception:
+                self._market_intelligence_running = False
+
+        threading.Thread(
+            target=worker, name="NobitexMarketIntelligence", daemon=True
+        ).start()
+
+    @staticmethod
+    def _mi_fmt(value: Any, suffix: str = "", digits: int = 2) -> str:
+        if value is None or value == "":
+            return "--"
+        try:
+            return f"{float(value):,.{digits}f}{suffix}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    def _show_market_intelligence(self, symbol: str) -> None:
+        """Populate the main-page Market Intelligence panel for one symbol."""
+        symbol = str(symbol or "").upper()
+        if not symbol:
+            return
+        row = pd.DataFrame()
+        try:
+            row = self.data_df[self.data_df["Symbol"].astype(str).str.upper() == symbol]
+        except Exception:
+            pass
+        base = row.iloc[0].to_dict() if not row.empty else {}
+        deep = self.market_intelligence.get(symbol, {})
+
+        values = {
+            "symbol": symbol,
+            "price": deep.get("price", base.get("Price")),
+            "bid": deep.get("bid", base.get("Bid")),
+            "ask": deep.get("ask", base.get("Ask")),
+            "volume": deep.get("volume_24h", base.get("Volume")),
+            "change24": deep.get("change_24h_pct", base.get("24h Change (%)")),
+            "day_open": deep.get("day_open", base.get("Day Open")),
+            "day_high": deep.get("day_high", base.get("Day High")),
+            "day_low": deep.get("day_low", base.get("Day Low")),
+            "day_pos": deep.get("day_position_pct"),
+            "buy_pressure": deep.get("buy_pressure_pct"),
+            "sell_pressure": deep.get("sell_pressure_pct"),
+            "ratio": deep.get("buy_sell_ratio"),
+            "imbalance": deep.get("orderbook_imbalance_pct"),
+            "momentum1": deep.get("momentum_1m_pct"),
+            "momentum5": deep.get("momentum_5m_pct"),
+            "momentum15": deep.get("momentum_15m_pct"),
+            "rsi": deep.get("rsi"),
+            "ema9": deep.get("ema9"),
+            "ema21": deep.get("ema21"),
+            "ema_trend": deep.get("ema_trend"),
+            "macd": deep.get("macd"),
+            "macd_hist": deep.get("macd_hist"),
+            "volume_ratio": deep.get("volume_ratio"),
+            "last_trade": deep.get("last_trade_type"),
+            "trades": deep.get("trades_count"),
+            "candles": deep.get("candles_available"),
+        }
+        if hasattr(self, "market_intelligence_vars"):
+            for key, var in self.market_intelligence_vars.items():
+                value = values.get(key)
+                if key == "symbol":
+                    text = value or "--"
+                elif key == "ema_trend":
+                    text = value or "--"
+                elif key == "last_trade":
+                    text = str(value or "--").upper()
+                elif key == "candles":
+                    text = ", ".join(f"{k}:{v}" for k, v in (value or {}).items()) or "--"
+                elif key in ("buy_pressure", "sell_pressure", "imbalance", "day_pos",
+                             "change24", "momentum1", "momentum5", "momentum15"):
+                    text = self._mi_fmt(value, "%")
+                elif key == "volume_ratio":
+                    text = self._mi_fmt(value, "×")
+                elif key == "ratio":
+                    text = self._mi_fmt(value, "×")
+                elif key == "trades":
+                    text = self._mi_fmt(value, "", 0)
+                else:
+                    text = self._mi_fmt(value)
+                var.set(text)
+
     def _build_nobitex_dataframe(self, rows: List[Dict[str, Any]]) -> pd.DataFrame:
         if not rows:
             return pd.DataFrame()
@@ -1997,6 +2122,8 @@ class CryptoScannerApp:
             self.latest_signals = []
 
         self.apply_filter()
+        if str(self.api_source_var.get()).strip().lower() == "nobitex":
+            self._refresh_market_intelligence_async(self.data_df)
         try:
             auto_label = "🤖 AUTO" if bool(getattr(cfg, "auto_regime_strategy", False)) else "✋ MANUAL"
             self.status_label.config(
@@ -2157,6 +2284,13 @@ class CryptoScannerApp:
         if not item or not col_id:
             return
         self.tree.selection_set(item)
+        try:
+            symbol_idx = self._COLS_FULL.index("Symbol")
+            selected_values = self.tree.item(item)["values"]
+            if symbol_idx < len(selected_values):
+                self._show_market_intelligence(str(selected_values[symbol_idx]))
+        except Exception:
+            pass
         col_idx = int(col_id.replace("#", "")) - 1
         col_name = self._COLS_FULL[col_idx]
         values = self.tree.item(item)["values"]
