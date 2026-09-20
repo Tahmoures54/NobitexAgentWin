@@ -1,22 +1,22 @@
 == loading 1m bars from research_data
-  loaded AAVE: 145088 bars (1m)
-  loaded ADA: 145090 bars (1m)
-  loaded ALGO: 145087 bars (1m)
-  loaded ATOM: 145088 bars (1m)
-  loaded AVAX: 145090 bars (1m)
-  loaded BCH: 145089 bars (1m)
-  loaded BTC: 145091 bars (1m)
-  loaded DOGE: 145090 bars (1m)
-  loaded DOT: 145089 bars (1m)
-  loaded ETH: 145091 bars (1m)
-  loaded FIL: 145088 bars (1m)
-  loaded LINK: 145090 bars (1m)
-  loaded LTC: 145089 bars (1m)
-  loaded NEAR: 145088 bars (1m)
-  loaded SOL: 145091 bars (1m)
-  loaded TRX: 145089 bars (1m)
-  loaded UNI: 145088 bars (1m)
-  loaded XRP: 145090 bars (1m)
+  loaded AAVE: 145078 bars (1m)
+  loaded ADA: 145080 bars (1m)
+  loaded ALGO: 145078 bars (1m)
+  loaded ATOM: 145079 bars (1m)
+  loaded AVAX: 145080 bars (1m)
+  loaded BCH: 145079 bars (1m)
+  loaded BTC: 145083 bars (1m)
+  loaded DOGE: 145081 bars (1m)
+  loaded DOT: 145080 bars (1m)
+  loaded ETH: 145082 bars (1m)
+  loaded FIL: 145079 bars (1m)
+  loaded LINK: 145080 bars (1m)
+  loaded LTC: 145080 bars (1m)
+  loaded NEAR: 145079 bars (1m)
+  loaded SOL: 145082 bars (1m)
+  loaded TRX: 145079 bars (1m)
+  loaded UNI: 145078 bars (1m)
+  loaded XRP: 145081 bars (1m)
 
 == file_defaults: trades=102 win=46.08 expectancy=-0.823% return=-12.502% dd=12.011% pf=0.431 halted=True
 
@@ -30,9 +30,13 @@
 
 == balanced_preset_paper_stops: trades=39 win=48.72 expectancy=-1.6613% return=-15.562% dd=10.302% pf=0.493 halted=True
 
-== random_entries (rate=1.953e-05, target~102): trades=57 win=52.63 expectancy=-0.53% return=-4.552%
+== file_defaults_no_trailing: trades=17 win=11.76 expectancy=3.7316% return=8.91% dd=12.034% pf=2.079 halted=True
 
-== buy & hold: {'AAVE': {'return_pct': 45.1, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.26, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -23.02, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.33, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.88, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.66, 'max_drawdown_pct': 49.97}, 'BTC': {'return_pct': 4.09, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.21, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.64, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.46, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -29.27, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.27, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.84, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -7.64, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.11, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.05, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 55.34, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.74, 'max_drawdown_pct': 28.07}}
+== balanced_preset_no_trailing: trades=10 win=0.0 expectancy=-7.7236% return=-15.994% dd=10.154% pf=0.0 halted=True
+
+== random_entries (rate=1.953e-05, target~102): trades=61 win=54.1 expectancy=-0.4027% return=-3.906%
+
+== buy & hold: {'AAVE': {'return_pct': 45.18, 'max_drawdown_pct': 34.88}, 'ADA': {'return_pct': -18.3, 'max_drawdown_pct': 44.64}, 'ALGO': {'return_pct': -23.02, 'max_drawdown_pct': 45.62}, 'ATOM': {'return_pct': -29.09, 'max_drawdown_pct': 47.1}, 'AVAX': {'return_pct': -20.92, 'max_drawdown_pct': 40.56}, 'BCH': {'return_pct': -31.6, 'max_drawdown_pct': 49.97}, 'BTC': {'return_pct': 4.12, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -18.16, 'max_drawdown_pct': 35.2}, 'DOT': {'return_pct': -32.58, 'max_drawdown_pct': 45.54}, 'ETH': {'return_pct': 19.51, 'max_drawdown_pct': 29.56}, 'FIL': {'return_pct': -29.2, 'max_drawdown_pct': 44.15}, 'LINK': {'return_pct': 21.2, 'max_drawdown_pct': 28.23}, 'LTC': {'return_pct': -7.94, 'max_drawdown_pct': 27.38}, 'NEAR': {'return_pct': -7.51, 'max_drawdown_pct': 49.94}, 'SOL': {'return_pct': 22.05, 'max_drawdown_pct': 30.94}, 'TRX': {'return_pct': -8.1, 'max_drawdown_pct': 17.48}, 'UNI': {'return_pct': 55.76, 'max_drawdown_pct': 34.71}, 'XRP': {'return_pct': 3.64, 'max_drawdown_pct': 28.07}}
 
 == forward study: events=1168
    h1m: {'mean_pct': -0.0439, 'median_pct': -0.0522, 'pct_positive': 41.44, 'mean_mfe_pct': 0.3087, 'mean_mae_pct': -0.3432, 'prob_mfe_ge_stop_before_mae': 2.74}
