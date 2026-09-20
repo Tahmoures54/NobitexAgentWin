@@ -223,24 +223,32 @@ class Engine:
                 # ── exits first (mirrors _update_open_trades) ──
                 pos = positions.get(symbol)
                 if pos is not None:
+                    # The exchange stop order in place during this bar is the
+                    # level computed at the *previous* scan, exactly as the live
+                    # loop leaves it (see _update_open_trades / _evaluate_trade).
                     exit_price: Optional[float] = None
                     reason = ""
-                    if p.intrabar_stops and bars.l[i] <= pos.stop:
-                        exit_price, reason = pos.stop, (
-                            "Stop Loss" if pos.stop == pos.initial_stop else "Trailing Stop")
-                    elif (not p.intrabar_stops) and price <= pos.stop:
-                        exit_price, reason = pos.stop, (
-                            "Stop Loss" if pos.stop == pos.initial_stop else "Trailing Stop")
-                    elif p.take_profit_pct > 0:
+                    if p.take_profit_pct > 0:
                         tp = pos.entry_price * (1 + p.take_profit_pct / 100.0)
                         if (p.intrabar_stops and bars.h[i] >= tp) or price >= tp:
-                            exit_price, reason = tp, "Take Profit"
+                            exit_price, reason = max(tp, bars.o[i]) if p.intrabar_stops else tp, \
+                                "Take Profit"
+                    if exit_price is None:
+                        if p.intrabar_stops:
+                            if bars.l[i] <= pos.stop:
+                                # a gap through the stop fills worse than the level
+                                exit_price = min(pos.stop, bars.o[i])
+                        elif price <= pos.stop:
+                            exit_price = pos.stop
+                        if exit_price is not None:
+                            reason = ("Stop Loss" if pos.stop == pos.initial_stop
+                                      else "Trailing Stop")
 
                     if exit_price is None:
-                        # trail update on the scan close, as the live loop does
+                        # trail ratchet on the scan sample, as the live loop does
                         pos.extreme = max(pos.extreme, price)
                         profit = (price - pos.entry_price) / pos.entry_price * 100.0
-                        if profit >= p.trail_activation_pct:
+                        if profit > 0 and profit >= p.trail_activation_pct:
                             trail = max(pos.extreme * (1 - p.trail_distance_pct / 100.0),
                                         pos.entry_price)
                             pos.stop = max(pos.stop, trail)
