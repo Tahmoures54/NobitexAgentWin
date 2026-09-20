@@ -20,13 +20,20 @@ The adaptive layer now uses realized closed-trade performance in addition to mar
 Nobitex only: market stats, order book, candles, balances, spot orders, status and cancel.
 
 ### Strategy behavior (default profile)
-1. Enter on **real observed local move** (default ~1.5–2%), not micro-noise.
+1. Enter on **real observed local move** (default 1.8%), not micro-noise.
 2. Reject wide spread, weak volume, and excessive chase.
-3. Place a **hard stop** on entry (default ~3%).
-4. **Trail the stop** when in profit (activate ~1.5%, distance ~1.2%).
-5. Take-profit percent default **0** — primary exit is the trailing stop.
-6. BTC dump guard + limited Eagle exception for strong liquid movers.
-7. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
+3. **Cost guard**: reject an entry whose observed move is less than `min_edge_multiple` × the round-trip cost (2 × fee + spread), or whose trailing gap cannot pay for the round trip at all. Skips are logged as `cost_guard`.
+4. Place a **hard stop** on entry (default 3%).
+5. **Trail the stop** when in profit (activate 3.0%, distance 2.0% — the armed level is floored at the entry price, so the smallest trailing win is ~+1% gross, above the ~0.8% round trip).
+6. Take-profit percent default **0** — primary exit is the trailing stop; `max_hold_minutes` (default 120) closes positions that never develop.
+7. **Expectancy guard**: if the mean net P&L of the last `expectancy_guard_trades` closed trades falls below `expectancy_guard_min_expectancy_pct`, new entries stop and `halt_reason` records why.
+8. Paper mode now pays `paper_half_spread_pct` on every simulated fill (entry and exit), so paper results are not optimistically biased.
+9. BTC dump guard + limited Eagle exception for strong liquid movers.
+10. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
+
+Auto-regime switching rewrites only the keys listed in `regime_controlled_keys` (default: `max_open_positions`); set `regime_auto_apply_all: true` for the legacy behaviour where a preset replaces the whole profile.
+
+**Before running against Nobitex:** `python tools/nobitex_preflight.py` — see [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md).
 
 ### Phase-1 production hardening
 Structured logging, rate limiter, retry policy, SQLite ledger, idempotency, graceful shutdown, watchdog.

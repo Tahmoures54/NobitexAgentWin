@@ -1,3 +1,56 @@
+## v6.9.1 — Profitability guards + honest paper economics
+
+Implements the fix list from `PROFITABILITY_ANALYSIS.md` (study re-run on 100 days
+of 1-minute data for 18 markets; every realistic arm is still net negative).
+
+### Entry economics
+- Cost guard rejects an entry when the observed move is below `min_edge_multiple`
+  × the round-trip cost (2 × fee + live spread), or when the trailing gap
+  (activation − distance) is smaller than the round-trip cost, i.e. every
+  trailing exit would be net negative. Rejections are logged as `cost_guard`.
+- `round_trip_cost_pct()` prices the round trip from the live order book
+  (Bid/Ask), falling back to the configured half-spread, then to the spread cap.
+
+### Paper-mode honesty
+- Simulated fills cross `paper_half_spread_pct` on entry and on every exit
+  (take-profit, trailing, hard stop, time stop), so paper P&L no longer assumes
+  mid-price fills on both legs.
+
+### Exits
+- `max_hold_minutes` time stop (per-trade column honoured, else the tracker
+  setting); the shipped profile uses 120 minutes because the study showed
+  positions otherwise sitting open for days.
+- Expectancy guard: when the mean `pnl_pct_net` of the last
+  `expectancy_guard_trades` closed trades is below
+  `expectancy_guard_min_expectancy_pct`, new entries stop and `halt_reason`
+  records the reason (monitor-only mode).
+
+### Configuration precedence
+- Auto-regime switching now rewrites only `regime_controlled_keys`
+  (default `max_open_positions`) instead of the whole preset; the legacy
+  behaviour is available via `regime_auto_apply_all: true`. Previously a 20 s
+  scan silently replaced the user's risk-per-trade, exposure cap, stop and
+  trailing settings with the preset's.
+- Seven guard fields added to `BotConfig`, synced in `apply_to_tracker()`, with
+  a v11 migration block (`PROFITABILITY_GUARD_DEFAULTS`) so existing configs
+  adopt the guards while explicit user values win.
+
+### Accounting
+- Partial fills of a cumulative-quantity order are priced by difference, since
+  Nobitex reports `executed_price` as the running average price of the order;
+  callers reporting per-fill prices set `price_is_incremental`. This fixes the
+  failing `test_cumulative_partial_sell_uses_delta_quantity`.
+
+### Test tooling
+- `tools/nobitex_preflight.py`: offline cost geometry check + live Nobitex
+  spread/cost-guard report per configured pair.
+- `NOBITEX_TEST_READINESS.md`: Persian run book for the paper test.
+- Research pipeline: s/ms/µs epoch normalisation, bar-step sanity warning,
+  live-faithful exit model (previous-scan stop level, gap-aware fills,
+  profit-gated ratchet), trailing (activation, distance) pairs in the sweep,
+  no-trailing arms, and an out-of-sample half-split check for the best cells.
+- Tests: 273 passed.
+
 ## v6.9.0 — Profitability-aware adaptive strategy switching
 
 - Added realized strategy performance statistics from closed trades.
