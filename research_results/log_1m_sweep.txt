@@ -1,43 +1,43 @@
 == loading 1m bars from research_data
-  loaded AAVE: 145066 bars (1m)
-  loaded ADA: 145069 bars (1m)
-  loaded ALGO: 145066 bars (1m)
-  loaded ATOM: 145067 bars (1m)
-  loaded AVAX: 145068 bars (1m)
-  loaded BCH: 145068 bars (1m)
-  loaded BTC: 145071 bars (1m)
-  loaded DOGE: 145069 bars (1m)
-  loaded DOT: 145068 bars (1m)
-  loaded ETH: 145070 bars (1m)
-  loaded FIL: 145067 bars (1m)
-  loaded LINK: 145068 bars (1m)
-  loaded LTC: 145068 bars (1m)
-  loaded NEAR: 145067 bars (1m)
-  loaded SOL: 145070 bars (1m)
-  loaded TRX: 145067 bars (1m)
-  loaded UNI: 145067 bars (1m)
-  loaded XRP: 145069 bars (1m)
+  loaded AAVE: 145026 bars (1m)
+  loaded ADA: 145028 bars (1m)
+  loaded ALGO: 145026 bars (1m)
+  loaded ATOM: 145027 bars (1m)
+  loaded AVAX: 145028 bars (1m)
+  loaded BCH: 145027 bars (1m)
+  loaded BTC: 145031 bars (1m)
+  loaded DOGE: 145029 bars (1m)
+  loaded DOT: 145028 bars (1m)
+  loaded ETH: 145030 bars (1m)
+  loaded FIL: 145026 bars (1m)
+  loaded LINK: 145028 bars (1m)
+  loaded LTC: 145028 bars (1m)
+  loaded NEAR: 145027 bars (1m)
+  loaded SOL: 145030 bars (1m)
+  loaded TRX: 145027 bars (1m)
+  loaded UNI: 145026 bars (1m)
+  loaded XRP: 145029 bars (1m)
   filtered to ['ADA', 'BTC', 'DOGE', 'ETH', 'SOL', 'XRP']
 
 == file_defaults: trades=46 win=56.52 expectancy=-0.5429% return=-4.211% dd=5.439% pf=0.556 halted=False
 
-== balanced_preset: trades=14 win=21.43 expectancy=-0.1564% return=0.153% dd=10.075% pf=1.018 halted=True
+== balanced_preset: trades=14 win=14.29 expectancy=-2.7218% return=-8.206% dd=10.075% pf=0.112 halted=True
 
 == conservative_preset: trades=85 win=50.59 expectancy=-0.482% return=-7.394% dd=8.539% pf=0.556 halted=False
 
 == file_defaults_zero_cost: trades=46 win=67.39 expectancy=0.0466% return=0.057% dd=2.37% pf=1.008 halted=False
 
-== balanced_preset_zero_cost: trades=19 win=26.32 expectancy=-1.1262% return=-4.256% dd=10.064% pf=0.532 halted=True
+== balanced_preset_zero_cost: trades=19 win=21.05 expectancy=-1.9078% return=-7.752% dd=10.064% pf=0.188 halted=True
 
 == balanced_preset_paper_stops: trades=14 win=14.29 expectancy=-2.7353% return=-8.251% dd=10.186% pf=0.112 halted=True
 
 == file_defaults_no_trailing: trades=13 win=15.38 expectancy=2.075% return=4.163% dd=7.618% pf=1.732 halted=False
 
-== balanced_preset_no_trailing: trades=11 win=9.09 expectancy=-0.9139% return=-1.698% dd=10.006% pf=0.817 halted=True
+== balanced_preset_no_trailing: trades=11 win=0.0 expectancy=-3.4616% return=-8.204% dd=10.006% pf=0.0 halted=True
 
-== random_entries (rate=2.642e-05, target~46): trades=32 win=50.0 expectancy=-0.9601% return=-4.608%
+== random_entries (rate=2.643e-05, target~46): trades=32 win=50.0 expectancy=-0.9601% return=-4.495%
 
-== buy & hold: {'ADA': {'return_pct': -18.26, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.08, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.99, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.52, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.05, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.53, 'max_drawdown_pct': 28.07}}
+== buy & hold: {'ADA': {'return_pct': -18.16, 'max_drawdown_pct': 44.64}, 'BTC': {'return_pct': 4.22, 'max_drawdown_pct': 25.83}, 'DOGE': {'return_pct': -17.58, 'max_drawdown_pct': 35.2}, 'ETH': {'return_pct': 19.68, 'max_drawdown_pct': 29.56}, 'SOL': {'return_pct': 22.34, 'max_drawdown_pct': 30.94}, 'XRP': {'return_pct': 3.46, 'max_drawdown_pct': 28.07}}
 
 == forward study: events=241
    h1m: {'mean_pct': -0.0329, 'median_pct': -0.0481, 'pct_positive': 43.57, 'mean_mfe_pct': 0.3708, 'mean_mae_pct': -0.4177, 'prob_mfe_ge_stop_before_mae': 3.73}
@@ -50,30 +50,31 @@
    threshold=2.5, lookback=2, trail_activation=3.0, trail_distance=2.0, stop=3.0, trades=6, win_rate=33.33, expectancy_pct=0.8019, return_pct=0.744, max_dd_pct=1.721, avg_hold_min=575.3
    threshold=2.5, lookback=6, trail_activation=3.0, trail_distance=2.0, stop=3.0, trades=14, win_rate=57.14, expectancy_pct=0.6912, return_pct=1.305, max_dd_pct=2.561, avg_hold_min=1238.3
    threshold=2.5, lookback=2, trail_activation=1.5, trail_distance=1.2, stop=3.0, trades=6, win_rate=50.0, expectancy_pct=0.683, return_pct=0.517, max_dd_pct=1.721, avg_hold_min=366.2
-   threshold=0.5, lookback=2, trail_activation=1.5, trail_distance=1.2, stop=3.0, trades=56, win_rate=44.64, expectancy_pct=0.5054, return_pct=3.724, max_dd_pct=12.039, avg_hold_min=4823.2
    threshold=1.5, lookback=2, trail_activation=1.5, trail_distance=0.6, stop=3.0, trades=23, win_rate=82.61, expectancy_pct=0.3503, return_pct=1.201, max_dd_pct=2.734, avg_hold_min=245.5
-   positive cells (>=20 trades): 8/96
-
--- out-of-sample check {'threshold': 2.5, 'lookback': 2, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
-   half1: trades=2 expectancy=-3.5409% return=-1.062% halted=False
-   half2: trades=4 expectancy=2.9734% return=1.826% halted=False
-
--- out-of-sample check {'threshold': 2.5, 'lookback': 6, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
-   half1: trades=6 expectancy=0.4959% return=0.632% halted=False
-   half2: trades=8 expectancy=0.8377% return=0.668% halted=False
-
--- out-of-sample check {'threshold': 2.5, 'lookback': 2, 'trail_activation': 1.5, 'trail_distance': 1.2, 'stop': 3.0}
-   half1: trades=2 expectancy=-3.5409% return=-1.062% halted=False
-   half2: trades=4 expectancy=2.7949% return=1.597% halted=False
-
--- out-of-sample check {'threshold': 0.5, 'lookback': 2, 'trail_activation': 1.5, 'trail_distance': 1.2, 'stop': 3.0}
-   half1: trades=56 expectancy=-0.6316% return=-5.149% halted=True
-   half2: trades=114 expectancy=-0.3498% return=-6.665% halted=False
+   threshold=2.5, lookback=6, trail_activation=3.0, trail_distance=1.0, stop=3.0, trades=14, win_rate=57.14, expectancy_pct=0.2202, return_pct=0.431, max_dd_pct=2.034, avg_hold_min=1074.0
+   positive cells (>=20 trades): 4/96
 
 -- out-of-sample check {'threshold': 1.5, 'lookback': 2, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 3.0}
    half1: trades=15 expectancy=-0.2249% return=-0.616% halted=False
    half2: trades=8 expectancy=1.4288% return=1.828% halted=False
 
+-- out-of-sample check {'threshold': 1.5, 'lookback': 2, 'trail_activation': 1.5, 'trail_distance': 0.6, 'stop': 2.0}
+   half1: trades=15 expectancy=0.0409% return=-0.123% halted=False
+   half2: trades=8 expectancy=0.2292% return=0.573% halted=False
+
+-- out-of-sample check {'threshold': 1.5, 'lookback': 2, 'trail_activation': 1.5, 'trail_distance': 1.2, 'stop': 3.0}
+   half1: trades=15 expectancy=-0.4369% return=-1.096% halted=False
+   half2: trades=8 expectancy=0.9662% return=1.204% halted=False
+
+-- out-of-sample check {'threshold': 1.5, 'lookback': 2, 'trail_activation': 3.0, 'trail_distance': 2.0, 'stop': 3.0}
+   half1: trades=15 expectancy=-0.6067% return=-1.374% halted=False
+   half2: trades=7 expectancy=1.3481% return=1.286% halted=False
+
+-- out-of-sample check {'threshold': 1.5, 'lookback': 2, 'trail_activation': 3.0, 'trail_distance': 1.0, 'stop': 3.0}
+   half1: trades=15 expectancy=-0.361% return=-0.746% halted=False
+   half2: trades=7 expectancy=0.527% return=0.624% halted=False
+
    cells positive in BOTH halves: 1/5
+   ...with >=10 trades in each half: 0/5
 
 wrote research_data/results_1m_sweep.json

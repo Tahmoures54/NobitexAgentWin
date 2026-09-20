@@ -55,5 +55,6 @@
    half2: trades=1 expectancy=0.6138% return=0.102% halted=False
 
    cells positive in BOTH halves: 0/5
+   ...with >=10 trades in each half: 0/5
 
 wrote research_data/results_10s.json
