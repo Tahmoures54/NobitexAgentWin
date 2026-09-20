@@ -171,14 +171,95 @@ def _component_rsi(snapshot: Dict[str, Any]) -> Optional[float]:
     return 20.0 if rsi < 40 else 20.0
 
 
+def _component_pump(row: Dict[str, Any]) -> Optional[float]:
+    signal = str(row.get("Signal", "") or "")
+    import re
+    match = re.search(r"([+-]?\d+(?:\.\d+)?)\s*%", signal)
+    if not match:
+        return None
+    return _clip(float(match.group(1)) / 3.0 * 100.0)
+
+
+def _component_momentum(snapshot: Dict[str, Any]) -> Optional[float]:
+    values = []
+    for key, weight in (
+        ("momentum_1m_pct", 0.25),
+        ("momentum_5m_pct", 0.35),
+        ("momentum_15m_pct", 0.40),
+    ):
+        value = _num(snapshot.get(key))
+        if value is not None:
+            values.append((_clip(50.0 + value * 12.5), weight))
+    if not values:
+        return None
+    return sum(score * weight for score, weight in values) / sum(w for _, w in values)
+
+
+def _component_pressure(snapshot: Dict[str, Any]) -> Optional[float]:
+    return _num(snapshot.get("buy_pressure_pct"))
+
+
+def _component_imbalance(snapshot: Dict[str, Any]) -> Optional[float]:
+    value = _num(snapshot.get("orderbook_imbalance_pct"))
+    return None if value is None else _clip(50.0 + value * 0.5)
+
+
+def _component_volume(snapshot: Dict[str, Any]) -> Optional[float]:
+    value = _num(snapshot.get("volume_ratio"))
+    if value is None:
+        return None
+    return _clip((value - 0.5) / 2.5 * 100.0)
+
+
+def _component_ema(snapshot: Dict[str, Any]) -> Optional[float]:
+    trend = str(snapshot.get("ema_trend", "") or "").lower()
+    if "bull" in trend or "up" in trend:
+        return 100.0
+    if "bear" in trend or "down" in trend:
+        return 0.0
+    return 50.0 if trend else None
+
+
+def _component_macd(snapshot: Dict[str, Any]) -> Optional[float]:
+    hist = _num(snapshot.get("macd_hist"))
+    if hist is None:
+        return None
+    macd = abs(_num(snapshot.get("macd"), 0.0) or 0.0)
+    signal = abs(_num(snapshot.get("macd_signal"), 0.0) or 0.0)
+    scale = macd + signal
+    return 50.0 if scale <= 0 else _clip(50.0 + hist / scale * 100.0)
+
+
+def _component_rsi(snapshot: Dict[str, Any]) -> Optional[float]:
+    rsi = _num(snapshot.get("rsi"))
+    if rsi is None:
+        return None
+    if 50 <= rsi <= 65:
+        return 100.0
+    if 65 < rsi <= 75:
+        return max(20.0, 100.0 - (rsi - 65.0) * 6.0)
+    if 40 <= rsi < 50:
+        return (rsi - 40.0) * 5.0
+    return 20.0
+
+
+def _component_adx(snapshot: Dict[str, Any]) -> Optional[float]:
+    adx = _num(snapshot.get("adx"))
+    if adx is None:
+        return None
+    return _clip((adx - 10.0) / 30.0 * 100.0)
+
+
 _COMPONENTS = (
-    ("Momentum", 25.0, _component_momentum),
-    ("Buy Pressure", 20.0, _component_pressure),
-    ("Order Book", 15.0, _component_imbalance),
-    ("Volume", 10.0, _component_volume),
-    ("EMA", 10.0, _component_ema),
-    ("MACD", 8.0, _component_macd),
-    ("RSI", 7.0, _component_rsi),
+    ("Pump", 15.0, lambda row, snapshot: _component_pump(row)),
+    ("Momentum", 20.0, lambda row, snapshot: _component_momentum(snapshot)),
+    ("Buy Pressure", 20.0, lambda row, snapshot: _component_pressure(snapshot)),
+    ("Order Book", 15.0, lambda row, snapshot: _component_imbalance(snapshot)),
+    ("Volume", 10.0, lambda row, snapshot: _component_volume(snapshot)),
+    ("EMA", 5.0, lambda row, snapshot: _component_ema(snapshot)),
+    ("MACD", 5.0, lambda row, snapshot: _component_macd(snapshot)),
+    ("RSI", 5.0, lambda row, snapshot: _component_rsi(snapshot)),
+    ("ADX", 5.0, lambda row, snapshot: _component_adx(snapshot)),
 )
 
 
@@ -188,30 +269,23 @@ def calculate_signal_intelligence_score(
     *,
     early: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Return a transparent 0-100 score using available deep evidence.
+    """Return a transparent 0-100 diagnostic score.
 
-    The early score is included at 20% when supplied. Missing deep components
-    are excluded from the denominator rather than silently becoming zero.
+    Missing components are excluded from the denominator. The early-mover
+    score may enrich reasons, but it is intentionally not an additional
+    weighted component here, keeping the documented 100-point model stable.
     """
     row = row or {}
     snapshot = snapshot or {}
     early = early or calculate_early_mover_score(row)
 
-    contributions = []
     factors: Dict[str, float] = {}
     available_weight = 0.0
     weighted_total = 0.0
 
-    early_score = _num(early.get("score"))
-    if early_score is not None:
-        factors["Early Mover"] = round(early_score, 2)
-        contributions.append(("Early Mover", early_score, 20.0))
-        available_weight += 20.0
-        weighted_total += early_score * 20.0
-
     for name, weight, calculator in _COMPONENTS:
         try:
-            component = calculator(snapshot)
+            component = calculator(row, snapshot)
         except Exception:
             component = None
         if component is None:
@@ -220,20 +294,23 @@ def calculate_signal_intelligence_score(
         factors[name] = round(component, 2)
         available_weight += weight
         weighted_total += component * weight
-        contributions.append((name, component, weight))
 
     if available_weight <= 0:
         return {
-            "score": None, "coverage_pct": 0.0, "grade": "Insufficient data",
-            "factors": {}, "reasons": ["no intelligence data"],
+            "score": None,
+            "coverage_pct": 0.0,
+            "grade": "Insufficient data",
+            "factors": {},
+            "reasons": ["no intelligence data"],
+            "available_weight": 0.0,
         }
 
     score = weighted_total / available_weight
-    coverage = available_weight / 100.0 * 100.0
+    coverage = min(100.0, available_weight)
     if coverage < 45.0:
         grade = "Insufficient data"
     elif score >= 75.0:
-        grade = "Strong"
+        grade = "Positive alignment"
     elif score >= 60.0:
         grade = "Constructive"
     elif score >= 45.0:
@@ -247,7 +324,6 @@ def calculate_signal_intelligence_score(
     m5 = _num(snapshot.get("momentum_5m_pct"))
     m15 = _num(snapshot.get("momentum_15m_pct"))
     vr = _num(snapshot.get("volume_ratio"))
-
     if buy is not None:
         reasons.append(f"buy pressure {buy:.0f}%")
     if imbalance is not None and abs(imbalance) >= 5:
@@ -268,6 +344,7 @@ def calculate_signal_intelligence_score(
         "reasons": reasons[:7] or ["mixed deep evidence"],
         "available_weight": round(available_weight, 1),
     }
+
 
 
 __all__ = ["calculate_early_mover_score", "calculate_signal_intelligence_score"]
