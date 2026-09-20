@@ -1,3 +1,42 @@
+## v7.0.0 — L2 order-flow microstructure gate
+
+Entry-side confirmation only. The v6.9.1 profitability guards (cost guard, honest
+paper fills, 360-minute time stop, expectancy guard) are unchanged and still bind.
+
+### Order-flow gate
+- `trading/order_flow.py`: deterministic, exchange-agnostic L2 feature extraction —
+  visible bid/ask depth imbalance, spread and microprice bias, collapsed into an
+  interpretable 0–100 score.
+- Configurable BUY-side gate (`order_flow_enabled`, `order_flow_levels=10`,
+  `order_flow_min_score=58`, `order_flow_max_spread_pct=1.2`,
+  `order_flow_min_bid_depth_quote`) wired into the existing candidate execution
+  path, and still evaluated when the ask-depth filter is disabled.
+
+### Multi-scan confirmation
+- A mover must persist before it is bought: `min_confirm_scans=3`,
+  `confirmation_enabled=true`, `confirmation_max_minutes=10`, with the shipped
+  entry thresholds raised to a 3% observed move (`pump_threshold_pct=3`,
+  `min_observed_move_pct=3`).
+
+### Online trade-outcome learner
+- `trading/online_trade_learner.py`: online logistic regression with bounded
+  weights and JSON persistence, estimating the probability a candidate reaches a
+  positive net outcome. It abstains below `ml_min_samples=30` and only gates
+  entries above `ml_min_probability=0.58`; it never touches sizing, stops or live
+  execution.
+
+### Tooling, tests, docs
+- `tools/nobitex_paper_capture.py`: read-only Nobitex paper-data recorder (public
+  market stats + L2 order book, no order placement/cancellation) for measuring the
+  paper strategy against real IRT conditions.
+- Tests for order-flow features and gate behaviour, the online learner, the
+  three-scan confirmation path, and pump-threshold isolation in the prioritisation
+  fixtures.
+- `README.md` / `PRODUCTION.md` capture instructions and default controls.
+- No profitability guarantee: the 100-day x 18-market study behind v6.9.1 found
+  every realistic arm net negative, and these layers are filters, not an edge.
+  Paper and walk-forward validation on captured Nobitex data remain required.
+
 ## v6.9.1 — Profitability guards + honest paper economics
 
 Implements the fix list from `PROFITABILITY_ANALYSIS.md` (study re-run on 100 days

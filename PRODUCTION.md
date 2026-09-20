@@ -25,10 +25,35 @@ This document is the go-live checklist for operators. Completing it does **not**
 | Field | Value |
 |-------|--------|
 | Product | CryptoScanner — Nobitex IRT Edition |
-| Version | 6.9.0 |
+| Version | 7.0.0 |
 | Default execution | **Paper** |
 | Venue | Nobitex spot IRT only |
 
+
+## v7.0 L2 order-flow microstructure gate
+
+The live candidate path can now require visible Nobitex bid-side pressure before a
+BUY is allowed. The feature layer is deterministic and interpretable; it does not
+replace the existing strategy selector or risk engine.
+
+Default controls: `order_flow_enabled=true`, `order_flow_levels=10`,
+`order_flow_min_score=58`, `order_flow_max_spread_pct=1.2`. These thresholds must
+be validated on real Nobitex data before changing live allocation.
+
+Two further confirmation layers ship with 7.0.0 and are also entry-side only:
+
+- A three-scan confirmation queue (`min_confirm_scans=3`,
+  `confirmation_max_minutes=10`) so a mover must persist before it is bought.
+- An online logistic trade-outcome learner (`ml_enabled=true`,
+  `ml_min_samples=30`, `ml_min_probability=0.58`) that abstains until it has seen
+  enough closed trades to say anything.
+
+Neither layer changes position sizing, stops, the cost guard, the time stop or the
+expectancy guard from v6.9.1; all of those remain in force.
+
+`tools/nobitex_paper_capture.py` is a **read-only** recorder (public market stats +
+L2 order book, no order placement) for collecting the real Nobitex conditions these
+thresholds have to be validated against.
 
 ## v6.9 profitability-aware strategy switching
 

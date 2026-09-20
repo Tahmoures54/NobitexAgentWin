@@ -16,7 +16,7 @@
     "max_open_positions": 2,
     "max_drawdown_percent": 12.0,
     "halt_on_max_drawdown": true,
-    "pump_threshold_pct": 1.8,
+    "pump_threshold_pct": 3,
     "movement_lookback_scans": 4,
     "stop_loss_pct": 3.0,
     "trailing_distance_pct": 2.0,
@@ -39,12 +39,12 @@
     "execution_mode": "paper",
     "trading_fee_pct": 0.25,
     "max_new_entries_per_cycle": 1,
-    "confirmation_enabled": false,
+    "confirmation_enabled": true,
     "confirmation_pct": 0.3,
-    "confirmation_max_minutes": 4,
-    "invalidation_pct": 1.2,
-    "max_chase_pct": 0.8,
-    "min_quality": 0.25,
+    "confirmation_max_minutes": 10,
+    "invalidation_pct": 1,
+    "max_chase_pct": 0.6,
+    "min_quality": 0.4,
     "blocked_risk_levels": [
         "High",
         "Extreme"
@@ -57,8 +57,8 @@
     "max_nobitex_spread_pct": 0.9,
     "max_spread_pct": 0.9,
     "max_local_fall_pct": 0.5,
-    "min_confirm_scans": 1,
-    "min_observed_move_pct": 1.8,
+    "min_confirm_scans": 3,
+    "min_observed_move_pct": 3,
     "max_local_24h_pct": 12.0,
     "btc_max_dump_pct": 3.0,
     "min_ask_depth_quote": 500000.0,
@@ -79,7 +79,7 @@
     "regime_controlled_keys": [
         "max_open_positions"
     ],
-    "strategy_defaults_version": 11,
+    "strategy_defaults_version": 12,
     "trade_log_file": "data/trade_history.json",
     "paper_half_spread_pct": 0.15,
     "cost_guard_enabled": true,
@@ -88,5 +88,10 @@
     "expectancy_guard_enabled": true,
     "expectancy_guard_trades": 30,
     "expectancy_guard_min_expectancy_pct": 0.0,
-    "regime_auto_apply_all": false
+    "regime_auto_apply_all": false,
+    "order_flow_enabled": true,
+    "order_flow_min_score": 58,
+    "ml_enabled": true,
+    "ml_min_samples": 30,
+    "ml_min_probability": 0.58
 }

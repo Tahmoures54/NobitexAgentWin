@@ -1,9 +1,9 @@
 """
 Main application class for the Advanced Crypto Scanner.
 Drop-in for gui/gui_main.py
-Version: 7.8.5 — Gate live tracker calls with should_run_live_tracker
+Version: 7.0.0 — Add L2 order-flow entry gate
 
-Changes in 7.8.5
+Changes in 7.0.0\n────────────────\nFIX 1 — Candidate BUY entries now receive an interpretable L2 microstructure layer: order-flow imbalance, visible bid/ask depth, spread and microprice bias. A configurable BUY-side gate rejects weak visible demand or wide spreads before execution.\n\nChanges in 7.8.5
 ────────────────
 FIX 1 — `_live_auto_scan` now gates the `real_signal_tracker.process_new_signals`
     call with `should_run_live_tracker(plan, has_live_positions)`.  Previously
@@ -1212,7 +1212,7 @@ class CryptoScannerApp:
                         min_depth = float(getattr(cfg, "min_ask_depth_quote", 0.0) or 0.0) if cfg else 0.0
                         depth_checked = 0
                         depth_rejected = 0
-                        if min_depth > 0 and candidates:
+                        if (min_depth > 0 or bool(getattr(cfg, "order_flow_enabled", True))) and candidates:
                             enriched = []
                             for hit in candidates:
                                 symbol = str(hit.get("Pair") or hit.get("Symbol") or "").upper()
@@ -1227,14 +1227,41 @@ class CryptoScannerApp:
                                 depth_checked += 1
                                 hit["asks"] = asks
                                 hit["AskDepthQuote"] = depth
-                                if depth < min_depth:
-                                    depth_rejected += 1
-                                    continue
+
+                                # v7 microstructure layer: use visible L2 pressure
+                                # as an entry confirmation, never as a replacement
+                                # for the existing momentum/regime/risk pipeline.
+                                of = analyze_order_book(
+                                    book,
+                                    levels=int(getattr(cfg, "order_flow_levels", 10) or 10),
+                                )
+                                hit.update({
+                                    "OrderFlowScore": round(float(of["order_flow_score"]), 2),
+                                    "OrderFlowImbalance": round(float(of["order_flow_imbalance"]), 4),
+                                    "OrderFlowSpreadPct": round(float(of["spread_pct"]), 4),
+                                    "BidDepthQuote": round(float(of["bid_depth_quote"]), 2),
+                                    "AskDepthQuoteL2": round(float(of["ask_depth_quote"]), 2),
+                                    "MicropriceBiasPct": round(float(of["microprice_bias_pct"]), 4),
+                                })
+                                if bool(getattr(cfg, "order_flow_enabled", True)):
+                                    allowed, reason = entry_gate(
+                                        of,
+                                        min_score=float(getattr(cfg, "order_flow_min_score", 58.0)),
+                                        max_spread_pct=float(getattr(cfg, "order_flow_max_spread_pct", 1.2)),
+                                        min_depth_quote=float(getattr(cfg, "order_flow_min_bid_depth_quote", 0.0)),
+                                    )
+                                    hit["OrderFlowGate"] = "PASS" if allowed else reason
+                                    if not allowed:
+                                        depth_rejected += 1
+                                        continue
+                                else:
+                                    hit["OrderFlowGate"] = "DISABLED"
                                 enriched.append(hit)
                             candidates = enriched
                         logger.info(
-                            "%s[NOBITEX] Filters | regime=%s | %s | execution_depth=%d rejected=%d threshold=%.0f IRT",
+                            "%s[NOBITEX] Filters | regime=%s | %s | L2 checked=%d rejected=%d ask_depth_min=%.0f IRT of_min=%.1f",
                             tag, regime, self.momentum_engine.stats_line(), depth_checked, depth_rejected, min_depth,
+                            float(getattr(cfg, "order_flow_min_score", 58.0) or 58.0),
                         )
                 except Exception as exc:
                     logger.warning(
