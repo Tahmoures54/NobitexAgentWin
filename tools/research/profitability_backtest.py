@@ -8,7 +8,7 @@ signal_tracker.py / trading/nobitex_momentum_engine.py:
             24h change <= max_local_24h_pct, no BTC dump, spread <= max_spread_pct
   exits   : hard stop at stop_loss_pct, trailing stop armed at
             trailing_activation_pct and trailing_distance_pct behind the extreme,
-            take_profit_percent = 0 (disabled)
+            take_profit_percent = 0 (disabled), optional max_hold_minutes time stop
   costs   : taker fee on both sides + half-spread on both sides + slippage
   sizing  : risk_per_trade_pct of equity / stop distance, capped by
             max_position_pct, max_notional_quote and max_total_exposure_pct
@@ -21,6 +21,7 @@ return study, random-entry control).
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import gzip
 import json
@@ -46,6 +47,7 @@ class Params:
     trail_activation_pct: float = 1.5
     trail_distance_pct: float = 1.2
     take_profit_pct: float = 0.0
+    max_hold_minutes: float = 0.0           # 0 = disabled; live config ships 120
     fee_pct_per_side: float = 0.25
     half_spread_pct: float = 0.15
     slippage_pct_per_side: float = 0.05
@@ -193,6 +195,7 @@ class Engine:
                    "duplicate": 0, "min_notional": 0, "halted": 0, "no_cash": 0}
         halted = False
         min_notional = max(0.0, p.min_notional_quote)
+        last_ts = 0   # timestamp where the scan loop stopped (halt or window end)
 
         # merge all scan timestamps of all symbols
         index = {s: {t: i for i, t in enumerate(b.t)} for s, b in self.data.items()}
@@ -226,6 +229,7 @@ class Engine:
         for ts in timeline:
             if halted:
                 break
+            last_ts = ts
             dumped = btc_dump_blocked(ts)
             for symbol, bars in self.data.items():
                 i = index[symbol].get(ts)
@@ -258,6 +262,14 @@ class Engine:
                         if exit_price is not None:
                             reason = ("Stop Loss" if pos.stop == pos.initial_stop
                                       else "Trailing Stop")
+
+                    if (exit_price is None and p.max_hold_minutes > 0
+                            and (ts - pos.entry_ts) >= p.max_hold_minutes * 60.0):
+                        # live: _update_open_trades market-sells once the position
+                        # is older than max_hold_minutes.  The exchange stop order
+                        # is still on the book during the bar, so a stop that was
+                        # hit intrabar wins this scan.
+                        exit_price, reason = price, "Time Stop"
 
                     if exit_price is None:
                         # trail ratchet on the scan sample, as the live loop does
@@ -387,11 +399,16 @@ class Engine:
                 equity_curve.append((ts, equity))
                 break
 
-        # close leftovers at the last known price (mark-out)
+        # Close leftovers at the price of the bar where the scan loop actually
+        # stopped.  Using the last bar of the window would mark a position held
+        # on day N at the day-100 price whenever the drawdown halt fires - free
+        # look-ahead that flatters exactly the cells that blew their DD limit.
         open_left = 0
         for sym, pos in list(positions.items()):
             b = self.data[sym]
-            fill = b.c[-1] * (1 - p.slippage_pct_per_side / 100.0)
+            mi = max(0, min(bisect.bisect_right(b.t, last_ts) - 1, len(b) - 1))
+            mark_ts, mark_px = b.t[mi], b.c[mi]
+            fill = mark_px * (1 - p.slippage_pct_per_side / 100.0)
             proceeds = pos.size * fill * (1 - p.fee_pct_per_side / 100.0)
             exit_fee = pos.size * fill * p.fee_pct_per_side / 100.0
             cash += proceeds
@@ -399,8 +416,9 @@ class Engine:
             gross_pct = (fill - pos.entry_price) / pos.entry_price * 100.0
             cost_pct = (pos.entry_fee + exit_fee) / pos.notional * 100.0
             trades.append({
-                "symbol": sym, "entry_ts": pos.entry_ts, "exit_ts": b.t[-1],
-                "hold_sec": b.t[-1] - pos.entry_ts, "reason": "Open at end",
+                "symbol": sym, "entry_ts": pos.entry_ts, "exit_ts": mark_ts,
+                "hold_sec": mark_ts - pos.entry_ts,
+                "reason": "Halted open" if halted else "Open at end",
                 "entry": pos.entry_price, "exit": fill,
                 "gross_pct": round(gross_pct, 4), "net_pct": round(gross_pct - cost_pct, 4),
                 "net_amount": round(net_pnl, 2), "notional": round(pos.notional, 2),
@@ -420,11 +438,17 @@ class Engine:
             pk = max(pk, eq)
             dd = max(dd, (pk - eq) / pk * 100.0)
         days = ((timeline[-1] - timeline[0]) / 86400.0) if len(timeline) > 1 else 0.0
+        # a halted run only traded part of the window - report both so the
+        # per-day rate is not diluted by days the engine never reached.
+        traded = (((last_ts - timeline[0]) / 86400.0)
+                  if len(timeline) > 1 and last_ts else days)
         return {
             "label": self.label,
             "window_days": round(days, 2),
+            "traded_days": round(traded, 2),
+            "max_hold_minutes": p.max_hold_minutes,
             "trades": len(trades),
-            "trades_per_day": round(len(trades) / days, 2) if days else 0.0,
+            "trades_per_day": round(len(trades) / traded, 2) if traded else 0.0,
             "signals": signals,
             "win_rate_pct": round(100.0 * len(wins) / len(trades), 2) if trades else None,
             "avg_win_pct": round(statistics.fmean([t["net_pct"] for t in wins]), 4) if wins else None,
@@ -522,6 +546,9 @@ def main() -> int:
     ap.add_argument("--sweep", action="store_true")
     ap.add_argument("--sweep-cells", default="fast", choices=["fast", "full"])
     ap.add_argument("--symbols", default="", help="comma list filter, e.g. BTC,ETH")
+    ap.add_argument("--time-stop", type=float, default=0.0, metavar="MINUTES",
+                    help="apply max_hold_minutes to every arm (0 = off). The "
+                         "shipped test profile uses 120.")
     args = ap.parse_args()
 
     print(f"== loading {args.bars} bars from {args.data_dir}", flush=True)
@@ -535,23 +562,31 @@ def main() -> int:
         return 2
 
     base = Params()
+    balanced, conservative = BALANCED_PRESET, CONSERVATIVE_PRESET
+    if args.time_stop > 0:
+        base = base.scaled(max_hold_minutes=args.time_stop)
+        balanced = balanced.scaled(max_hold_minutes=args.time_stop)
+        conservative = conservative.scaled(max_hold_minutes=args.time_stop)
+        print(f"== applying a {args.time_stop:g}-minute time stop to every arm",
+              flush=True)
     report: dict = {"bars": args.bars, "symbols": sorted(data),
-                    "bars_loaded": {k: len(v) for k, v in data.items()}}
+                    "bars_loaded": {k: len(v) for k, v in data.items()},
+                    "time_stop_minutes": args.time_stop}
 
     arms = {
         "file_defaults": base,
-        "balanced_preset": BALANCED_PRESET,
-        "conservative_preset": CONSERVATIVE_PRESET,
+        "balanced_preset": balanced,
+        "conservative_preset": conservative,
         "file_defaults_zero_cost": base.scaled(fee_pct_per_side=0.0, half_spread_pct=0.0,
                                                slippage_pct_per_side=0.0),
-        "balanced_preset_zero_cost": BALANCED_PRESET.scaled(
+        "balanced_preset_zero_cost": balanced.scaled(
             fee_pct_per_side=0.0, half_spread_pct=0.0, slippage_pct_per_side=0.0),
-        "balanced_preset_paper_stops": BALANCED_PRESET.scaled(intrabar_stops=False),
+        "balanced_preset_paper_stops": balanced.scaled(intrabar_stops=False),
         # no trailing stop at all: exits are the hard stop (or the end of the
         # window).  This isolates "does the signal have drift?" from "does the
         # exit geometry pay for the round trip?".
         "file_defaults_no_trailing": base.scaled(trail_activation_pct=1e9),
-        "balanced_preset_no_trailing": BALANCED_PRESET.scaled(trail_activation_pct=1e9),
+        "balanced_preset_no_trailing": balanced.scaled(trail_activation_pct=1e9),
     }
     for name, params in arms.items():
         res = Engine(data, params, label=name).run()
@@ -563,7 +598,7 @@ def main() -> int:
 
     # random-entry control with matched trade count
     ref = report["file_defaults"]
-    days = max(ref["window_days"], 1e-9)
+    days = max(ref.get("traded_days") or ref["window_days"], 1e-9)
     scans = int(round(days * 86400 / base.scan_seconds)) * max(1, len(data))
     rate = min(0.5, max(1e-7, (ref["trades"] or 1) / max(scans, 1) * 3.0))
     ctrl = Engine(data, base.scaled(random_entries=True, random_rate=rate),
@@ -630,12 +665,27 @@ def main() -> int:
         # Out-of-sample check: the best cells are re-run on each half of the
         # window.  A geometry that only works on the half it was picked from is
         # curve-fitting, not an edge.
+        #
+        # Candidates are ranked among the cells that actually traded (>=20) and
+        # never tripped their own drawdown halt.  Ranking all 96 cells by raw
+        # expectancy puts n=6 cells at the top, and a 6-trade mean is not a
+        # result - it is a coin flip with a decimal point.
+        def _rank(rows: List[dict]) -> List[dict]:
+            return sorted(rows, key=lambda r: -(r["expectancy_pct"] or -999))
+
+        deployable = [r for r in grid if (r["trades"] or 0) >= 20 and not r["halted"]]
+        _seen = {id(r) for r in deployable}
+        candidates = _rank(deployable) + _rank([r for r in grid if id(r) not in _seen])
+        report["sweep_deployable_cells"] = len(deployable)
+        report["sweep_oos_rule"] = ("top 5 by expectancy among cells with >=20 trades "
+                                    "that did not hit the drawdown halt, then the rest")
         halves = {0: split_bars(data, 0), 1: split_bars(data, 1)}
         oos = []
-        for row in sorted(grid, key=lambda r: -(r["expectancy_pct"] or -999))[:5]:
+        for row in candidates[:5]:
             cell = {"cell": {k: row[k] for k in ("threshold", "lookback",
                                                  "trail_activation", "trail_distance",
                                                  "stop")},
+                    "deployable_cell": (row["trades"] or 0) >= 20 and not row["halted"],
                     "full_window": {"trades": row["trades"],
                                     "expectancy_pct": row["expectancy_pct"]}}
             print(f"\n-- out-of-sample check {cell['cell']}")
@@ -651,16 +701,23 @@ def main() -> int:
                 cell[f"half{half + 1}"] = {"trades": res["trades"],
                                            "expectancy_pct": res["expectancy_pct"],
                                            "return_pct": res["return_pct"],
+                                           "avg_hold_min": res["avg_hold_min"],
                                            "halted": res["halted"]}
                 print(f"   half{half + 1}: trades={res['trades']} "
                       f"expectancy={res['expectancy_pct']}% return={res['return_pct']}% "
                       f"halted={res['halted']}", flush=True)
             cell["both_halves_positive"] = all(
                 (cell[f"half{h}"]["expectancy_pct"] or -9) > 0 for h in (1, 2))
+            # ...and each half traded enough for the mean to mean something.
+            cell["robust"] = bool(cell["both_halves_positive"]
+                                  and all((cell[f"half{h}"]["trades"] or 0) >= 10
+                                          for h in (1, 2)))
             oos.append(cell)
         report["sweep_out_of_sample"] = oos
         print(f"\n   cells positive in BOTH halves: "
               f"{sum(1 for c in oos if c['both_halves_positive'])}/{len(oos)}")
+        print(f"   ...with >=10 trades in each half: "
+              f"{sum(1 for c in oos if c['robust'])}/{len(oos)}")
 
     if args.json_out:
         with open(args.json_out, "w") as fh:
