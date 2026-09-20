@@ -37,6 +37,21 @@ SLEEP_BETWEEN_CALLS = 0.7
 DEADLINE = float("inf")
 
 
+def _norm_ts(ts: int) -> int:
+    """Binance Vision ships microsecond (and older millisecond) epochs."""
+    ts = int(ts)
+    while ts > 100_000_000_000:
+        ts //= 1000
+    return ts
+
+
+def _fmt_ts(ts: int) -> str:
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(ts)
+
+
 def budget_left() -> float:
     return DEADLINE - time.time()
 
@@ -205,9 +220,7 @@ def _vision_days(symbol: str, interval: str, days: int) -> Iterable[List[list]]:
                         parts = line.split(",")
                         if len(parts) < 6 or not parts[0].strip().isdigit():
                             continue
-                        ts = int(parts[0])
-                        if ts > 10_000_000_000:
-                            ts //= 1000
+                        ts = _norm_ts(parts[0])
                         day_rows.append([ts, float(parts[1]), float(parts[2]), float(parts[3]),
                                          float(parts[4]), float(parts[5])])
             yield day_rows
@@ -260,9 +273,7 @@ def fetch_binance_vision_1m(base: str, days: int) -> Tuple[List[list], str]:
                         parts = line.split(",")
                         if len(parts) < 6 or not parts[0].strip().isdigit():
                             continue
-                        ts = int(parts[0])
-                        if ts > 10_000_000_000:
-                            ts //= 1000
+                        ts = _norm_ts(parts[0])
                         rows.append([ts, float(parts[1]), float(parts[2]), float(parts[3]),
                                      float(parts[4]), float(parts[5])])
         except Exception as exc:  # noqa: BLE001
@@ -522,8 +533,7 @@ def main() -> int:
                     continue
                 n = write_gz_csv(path, ["t", "open", "high", "low", "close", "volume"], rows)
                 print(f"[ohlc] {sym}: OK via {provenance} rows={n} "
-                      f"range={datetime.utcfromtimestamp(rows[0][0]).date()} → "
-                      f"{datetime.utcfromtimestamp(rows[-1][0]).date()}")
+                      f"range={_fmt_ts(rows[0][0])} → {_fmt_ts(rows[-1][0])}")
                 report["ohlc"][sym] = {"provenance": provenance, "rows": n,
                                        "first": rows[0][0], "last": rows[-1][0]}
                 break
@@ -548,7 +558,8 @@ def main() -> int:
                         print(f"[ticks] {sym}: {name} returned only {len(rows)} bars; next source")
                         continue
                     n = write_gz_csv(path, ["t", "open", "high", "low", "close", "volume", "trades"], rows)
-                    print(f"[ticks] {sym}: OK via {provenance} bars={n}")
+                    print(f"[ticks] {sym}: OK via {provenance} bars={n} "
+                          f"range={_fmt_ts(rows[0][0])} → {_fmt_ts(rows[-1][0])}")
                     report["ticks"][sym] = {"provenance": provenance, "rows": n,
                                             "first": rows[0][0], "last": rows[-1][0]}
                     break
@@ -568,7 +579,19 @@ def main() -> int:
             report["nobitex"] = {"reachable": False, "error": str(exc)[:300]}
             print(f"[nobitex] failed: {exc}")
 
-    with open(os.path.join(OUT_DIR, "fetch_report.json"), "w", encoding="utf-8") as fh:
+    report_path = os.path.join(OUT_DIR, "fetch_report.json")
+    if os.path.exists(report_path):
+        try:
+            with open(report_path, "r", encoding="utf-8") as fh:
+                prev = json.load(fh)
+            for sym, meta in (prev.get("ohlc") or {}).items():
+                if not (report.get("ohlc") or {}).get(sym):
+                    report.setdefault("ohlc", {})[sym] = meta
+            if prev.get("nobitex") and not report.get("nobitex"):
+                report["nobitex"] = prev["nobitex"]
+        except Exception:
+            pass
+    with open(report_path, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
     print(json.dumps({k: v for k, v in report.items() if k in ("ohlc", "ticks", "errors")}, indent=2))
     return 0

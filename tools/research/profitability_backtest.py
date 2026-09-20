@@ -217,6 +217,11 @@ class Bars:
         arr = np.asarray(rows, dtype=np.float64)
         order = np.argsort(arr[:, 0], kind="stable")
         arr = arr[order]
+        # guard against millisecond/microsecond epochs from any data source:
+        # in seconds a unix epoch is ~1.8e9, so anything above 1e11 is scaled
+        if len(arr) > 2 and float(arr[0, 0]) > 1e11:
+            while float(arr[0, 0]) > 1e11:
+                arr[:, 0] /= 1000.0
         self.symbol = symbol
         self.t = arr[:, 0].astype(np.int64)
         self.o = arr[:, 1]
