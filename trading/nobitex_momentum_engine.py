@@ -78,7 +78,7 @@ class NobitexMomentumEngine:
             "confirm={confirm} "
             "btc_dump={btc_dump} eagle={btc_dump_exc} "
             "depth={depth} missing_depth={missing_depth} "
-            "best_move={best_obs:.2f}%"
+            "best_move={best_obs:.2f}% day_range_max={day_range:.2f}%"
         ).format(
             local=s.get("local", 0),
             passed=s.get("passed", 0),
@@ -98,6 +98,7 @@ class NobitexMomentumEngine:
             depth=s.get("depth", 0),
             missing_depth=s.get("missing_depth", 0),
             best_obs=float(s.get("best_obs", 0.0) or 0.0),
+            day_range=float(s.get("day_range_max", 0.0) or 0.0),
         )
 
     @staticmethod
@@ -166,7 +167,7 @@ class NobitexMomentumEngine:
         now=time.time() if now is None else float(now)
         stats={"local":0,"passed":0,"volume":0,"spread":0,"depth":0,"no_trend":0,
                "falling":0,"chase":0,"confirm":0,"btc_dump":0,"btc_dump_exc":0,
-               "best_obs":0.0,"invalid_quote":0,"missing_depth":0,"depth_checked":0,
+               "best_obs":0.0,"day_range_max":0.0,"day_range_position":0.0,"invalid_quote":0,"missing_depth":0,"depth_checked":0,
                "age":0,"cooldown":0,"blacklist":0,"already_open":0,"min_notional":0}
         btc_dumping=self._btc_dumping(local_rows)
         candidates=[]; live_symbols=set()
@@ -179,6 +180,14 @@ class NobitexMomentumEngine:
             price=ask or safe_float(source.get("Price")) or 0.0
             volume=safe_float(source.get("Volume")) or 0.0
             local_24h=safe_float(source.get("24h Change (%)")) or 0.0
+            day_open=safe_float(source.get("Day Open")) or 0.0
+            day_high=safe_float(source.get("Day High")) or 0.0
+            day_low=safe_float(source.get("Day Low")) or 0.0
+            day_range_pct=((day_high-day_low)/day_low*100.0) if day_low>0 and day_high>=day_low else 0.0
+            day_range_position=((price-day_low)/(day_high-day_low)*100.0) if day_high>day_low and price>0 else 0.0
+            stats["day_range_max"]=max(float(stats.get("day_range_max",0.0)), day_range_pct)
+            if day_range_pct>0:
+                stats["day_range_position"]=max(float(stats.get("day_range_position",0.0)), day_range_position)
             one_hour_change=safe_float(source.get("1h Change (%)"))
             observed=self._lookback(symbol,price,self.movement_lookback_scans)
             recent=self._recent(symbol,price)
@@ -250,6 +259,9 @@ class NobitexMomentumEngine:
                            "pump_pct":observed,"ObservedLocalMove (%)":observed,
                            "LocalMomentum (%)":observed,"LocalTick (%)":local_tick,
                            "Nobitex Spread (%)":spread,"Nobitex Ask":ask,"Nobitex Bid":bid,
+                           "Day Change (%)":local_24h,"Day Open":day_open,
+                           "Day High":day_high,"Day Low":day_low,
+                           "Day Range (%)":day_range_pct,"Day Range Position (%)":day_range_position,
                            "MomentumScore":score,"Score":score,"TrendHold (sec)":max(0,now-first),
                            "TrendConfirmScans":hits,"EagleException":eagle,
                            "DataSource":"Nobitex","ExecutionVenue":"Nobitex"})
