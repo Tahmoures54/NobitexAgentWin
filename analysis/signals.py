@@ -30,6 +30,8 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 import numpy as np
 import pandas as pd
 
+from analysis.raw_trend import trend_signal
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -147,6 +149,89 @@ def _signal_from_score(score: float) -> str:
 # ══════════════════════════════════════════════════════════════
 # Individual strategies
 # ══════════════════════════════════════════════════════════════
+
+def _scan_history_from_row(row: Dict[str, Any]) -> Any:
+    """Read scanner-owned history without manufacturing a candle series."""
+    if not isinstance(row, dict):
+        return []
+    for key in ("scan_history", "ScanHistory", "price_history", "prices", "scan_prices"):
+        value = row.get(key)
+        if isinstance(value, (list, tuple)):
+            return value
+    return []
+
+
+def real_movement_strategy(
+    row: Dict[str, Any],
+    *,
+    threshold_percent: Optional[float] = None,
+    min_consecutive_positive_scans: Optional[int] = None,
+    trend_lookback_scans: Optional[int] = None,
+    stop_loss_percent: Optional[float] = None,
+    trailing_stop_percent: Optional[float] = None,
+    **_: Any,
+) -> Dict[str, Any]:
+    """Generate a signal from raw, scanner-owned price history only.
+
+    This is the production strategy for the Nobitex IRT path.  It does not
+    inspect RSI/MACD/EMA/Bollinger/volume-derived features and it never
+    predicts a future price.  Rows without enough scan history are neutral.
+    ``threshold_percent`` is deliberately strict (``>``), so a move exactly
+    on the user's threshold is not an entry.
+    """
+    history = _scan_history_from_row(row)
+    threshold = float(
+        threshold_percent if threshold_percent is not None
+        else row.get("threshold_percent", row.get("min_observed_move_pct", 3.0))
+    )
+    streak = int(
+        min_consecutive_positive_scans if min_consecutive_positive_scans is not None
+        else row.get("min_consecutive_positive_scans", row.get("min_confirm_scans", 3))
+    )
+    lookback = int(
+        trend_lookback_scans if trend_lookback_scans is not None
+        else row.get("trend_lookback_scans", row.get("movement_lookback_scans", 6))
+    )
+    stop = float(
+        stop_loss_percent if stop_loss_percent is not None
+        else row.get("stop_loss_percent", row.get("stop_loss_pct", 3.0))
+    )
+    trail = float(
+        trailing_stop_percent if trailing_stop_percent is not None
+        else row.get("trailing_stop_percent", row.get("trailing_distance_pct", 0.0))
+    )
+    symbol = str(row.get("Symbol") or row.get("symbol") or "").upper()
+    result = trend_signal(
+        history,
+        symbol=symbol,
+        threshold_percent=threshold,
+        min_consecutive_positive_scans=streak,
+        trend_lookback_scans=lookback,
+        stop_loss_percent=stop,
+        trailing_stop_percent=trail,
+    )
+    # Preserve the input symbol/price context for DataFrame and GUI callers.
+    result["scan_history"] = list(history) if isinstance(history, (list, tuple)) else []
+    result["TrendConfirmed"] = bool(result.get("trend_confirmed", False))
+    result["trend_confirmed"] = bool(result.get("trend_confirmed", False))
+    result["TrendBreak"] = bool(result.get("trend_break", False))
+    result["trend_break"] = bool(result.get("trend_break", False))
+    result["price"] = result.get("current_price")
+    result["score"] = round(max(0.0, min(100.0, result["cumulative_change_pct"])), 4)
+    result["Score"] = result["score"]
+    result["confidence"] = 100.0 if result["entry_allowed"] else 0.0
+    result["quality"] = 1.0 if result["sufficient_history"] else 0.0
+    result["risk"] = "Low" if result["entry_allowed"] else "Unknown"
+    result["risk_level"] = result["risk"]
+    result["long_score"] = result["score"] if result["entry_allowed"] else 0.0
+    return result
+
+
+# Explicit aliases make the strategy discoverable without forcing callers to
+# know the internal name used by the release profile.
+raw_trend_strategy = real_movement_strategy
+nobitex_trend_strategy = real_movement_strategy
+
 
 def basic_signal_strategy(row: Dict[str, Any]) -> Dict[str, Any]:
     rsi = _num(row, "RSI", default=50)
@@ -338,6 +423,11 @@ def advanced_signal_strategy(row: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def composite_strategy(row: Dict[str, Any]) -> Dict[str, Any]:
+    # A row carrying scanner-owned history must never fall back to the legacy
+    # indicator ensemble.  This keeps the production/raw path deterministic
+    # while preserving the historical API for old dashboard rows.
+    if _scan_history_from_row(row):
+        return real_movement_strategy(row)
     if not isinstance(row, dict) or not row:
         return {
             "signal": "Neutral", "Signal": "Neutral",
@@ -422,6 +512,10 @@ class StrategyRegistry:
 
 strategy_registry = StrategyRegistry()
 for _n, _f in {
+    "real_movement": real_movement_strategy,
+    "raw_trend": real_movement_strategy,
+    "nobitex_trend": real_movement_strategy,
+    "trend": real_movement_strategy,
     "basic_signal_strategy": basic_signal_strategy,
     "basic": basic_signal_strategy,
     "advanced": advanced_signal_strategy,
@@ -444,9 +538,17 @@ def get_strategy(name: str):
 # DataFrame application
 # ══════════════════════════════════════════════════════════════
 
-def _apply_one(row, fn):
+def _apply_one(row, fn, strategy_kwargs: Optional[Dict[str, Any]] = None):
     """Convert a Series row to a dict, run the strategy, return result dict."""
     d = row.to_dict() if isinstance(row, pd.Series) else dict(row)
+    if strategy_kwargs:
+        try:
+            return fn(d, **strategy_kwargs)
+        except TypeError:
+            # Legacy indicator strategies predate strategy keyword arguments;
+            # keep their public compatibility while the raw strategy receives
+            # its explicit thresholds.
+            return fn(d)
     return fn(d)
 
 
@@ -486,7 +588,8 @@ def apply_strategy_to_df(
     if fn is None:
         raise ValueError(f"Unknown strategy: {strategy}")
 
-    result = df.apply(lambda r: _apply_one(r, fn), axis=1)
+    strategy_kwargs = dict(kwargs)
+    result = df.apply(lambda r: _apply_one(r, fn, strategy_kwargs), axis=1)
 
     out = df.copy()
     fields = set()

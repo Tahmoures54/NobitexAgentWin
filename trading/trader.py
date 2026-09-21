@@ -56,6 +56,7 @@ from typing import Any, Dict, List, Optional
 
 from .bot_config import BotConfig, load_config, validate_config
 from .exchange_base import ExchangeBase
+from .execution_mode import LIVE, PAPER, normalize_execution_mode
 from .idempotency import IdempotencyGuard
 from .portfolio_manager import NobitexPortfolioManager
 from .trade_accounting import TradeAccounting
@@ -281,6 +282,11 @@ class TradingBot:
 
         self.live_trading_available = False
         self.execution_enabled = False
+        # A connected account is not an authorization to trade.  The GUI
+        # arms this flag only after the user switches to LIVE and presses
+        # Start; paper mode and a background connection can never submit a
+        # Nobitex order.
+        self.live_order_activation = False
 
         self.last_error: Optional[str] = None
         self.last_error_timestamp: Optional[float] = None
@@ -545,6 +551,7 @@ class TradingBot:
         with self.lock:
             self.running = False
             self.execution_enabled = False
+            self.live_order_activation = False
             logger.info("TradingBot execution layer stopped")
 
     def get_status(self) -> Dict[str, Any]:
@@ -562,6 +569,7 @@ class TradingBot:
                 "authentication_status": self.authentication_status,
                 "authentication_error": self.authentication_error,
                 "live_trading_available": self.live_trading_available,
+                "live_order_activation": bool(getattr(self, "live_order_activation", False)),
                 "execution_enabled": self.execution_enabled,
                 "last_error": self.last_error,
                 "last_error_timestamp": self.last_error_timestamp,
@@ -863,7 +871,7 @@ class TradingBot:
     def refresh_balance(self) -> Optional[float]:
         return self.get_balance_fresh(self.quote_currency)
 
-    def _can_place_order(self) -> bool:
+    def _can_place_order(self, side: Optional[str] = None) -> bool:
         if not self.running:
             return False
         if not self.execution_enabled:
@@ -872,6 +880,12 @@ class TradingBot:
             return False
         if self.exchange_name == "simulator":
             return True
+        if self.exchange_name == "nobitex" and str(side or "buy").lower() != "sell":
+            # A live session may be switched back to paper while existing
+            # positions are still monitored.  The mode blocks new BUYs, but
+            # an already authenticated session may still submit SELL exits.
+            if not bool(getattr(self, "live_order_activation", False)):
+                return False
         if not self.live_trading_available:
             return False
         if self.balance_status != BALANCE_AVAILABLE:
@@ -932,7 +946,7 @@ class TradingBot:
             return {"status": "rejected", "order_id": None, "message": "Order type is empty."}
 
         with self.lock:
-            if not self._can_place_order():
+            if not self._can_place_order(side):
                 if not self.running:
                     return {
                         "status": "rejected", "order_id": None,
@@ -949,6 +963,24 @@ class TradingBot:
                         "status": "rejected", "order_id": None,
                         "message": "Live trading rejected: exchange authorization failed.",
                         "reason": "authorization_failed",
+                    }
+                if (
+                    self.exchange_name == "nobitex"
+                    and side == "buy"
+                    and normalize_execution_mode(getattr(self.config, "execution_mode", PAPER)) != LIVE
+                ):
+                    return {
+                        "status": "rejected", "order_id": None,
+                        "message": "Paper mode is active; switch to Live and press Start before sending Nobitex BUY orders.",
+                        "reason": "paper_mode",
+                    }
+                if self.exchange_name == "nobitex" and not bool(
+                    getattr(self, "live_order_activation", False)
+                ):
+                    return {
+                        "status": "rejected", "order_id": None,
+                        "message": "Live order activation is not armed. Switch to Live and press Start.",
+                        "reason": "live_activation_required",
                     }
                 if not self.execution_enabled or not self.live_trading_available:
                     return {
@@ -995,6 +1027,34 @@ class TradingBot:
                 return {"status":"rejected","order_id":None,"message":"Live buy blocked: fresh quote balance unavailable.","reason":"balance_unavailable"}
             if max_pct and max_pct > 0 and notional > equity * max_pct / 100.0:
                 return {"status":"rejected","order_id":None,"message":f"Live buy blocked: notional {notional:.2f} exceeds {max_pct:.2f}% position cap.","reason":"max_position_pct_exceeded"}
+
+            # The SignalTracker applies the authoritative managed-position
+            # exposure calculation.  Keep a second, execution-layer guard
+            # using the latest reconciled Nobitex snapshot when available so
+            # a direct caller cannot exceed the configured total exposure
+            # cap.  If no snapshot exists, the existing quote-balance and
+            # per-order caps still fail closed; the tracker must size the
+            # order before it reaches this method.
+            max_total_pct = _safe_float(
+                getattr(self.config, "max_total_exposure_pct", None), None
+            )
+            snapshot = getattr(getattr(self, "portfolio_manager", None), "last_snapshot", None)
+            if max_total_pct and max_total_pct > 0 and isinstance(snapshot, dict):
+                total_equity = _safe_float(
+                    snapshot.get("portfolio_value_quote")
+                    or snapshot.get("portfolio_total_value_quote"), equity
+                ) or equity
+                held_exposure = _safe_float(snapshot.get("valued_assets_quote"), 0.0) or 0.0
+                exposure_cap = total_equity * max_total_pct / 100.0
+                if held_exposure + notional > exposure_cap + 1e-9:
+                    return {
+                        "status": "rejected", "order_id": None,
+                        "message": (
+                            f"Live buy blocked: total exposure {held_exposure + notional:.2f} "
+                            f"would exceed {max_total_pct:.2f}% cap ({exposure_cap:.2f})."
+                        ),
+                        "reason": "max_total_exposure_exceeded",
+                    }
             fee_pct = max(0.0, _safe_float(getattr(self.config, "trading_fee_pct", 0.25), 0.25) or 0.25)
             if notional > equity * (1.0 - fee_pct / 100.0):
                 return {"status":"rejected","order_id":None,"message":"Live buy blocked: order plus estimated fee exceeds available quote balance.","reason":"insufficient_quote_after_fee"}
@@ -1321,6 +1381,7 @@ class TradingBot:
 
     def disable_live_trading(self, reason: str = "Disabled by user.") -> None:
         with self.lock:
+            self.live_order_activation = False
             self.live_trading_available = False
             self.execution_enabled = False
             self.last_error = reason
@@ -1330,9 +1391,13 @@ class TradingBot:
     def enable_live_trading(self) -> bool:
         with self.lock:
             if self.exchange_name == "simulator":
+                self.live_order_activation = True
                 self.live_trading_available = True
                 self.execution_enabled = bool(self.running)
                 return True
+            if normalize_execution_mode(getattr(self.config, "execution_mode", PAPER)) != LIVE:
+                logger.warning("Live order activation refused while execution_mode=%s.", getattr(self.config, "execution_mode", PAPER))
+                return False
 
         balance = self.get_balance_fresh(self.quote_currency)
         if balance is None:
@@ -1346,6 +1411,7 @@ class TradingBot:
                 return False
             self.live_trading_available = True
             self.execution_enabled = bool(self.running)
+            self.live_order_activation = True
             logger.info("Live trading execution enabled.")
             return True
 
@@ -1355,6 +1421,7 @@ class TradingBot:
                 return
             self.running = False
             self.execution_enabled = False
+            self.live_order_activation = False
 
             try:
                 if self.exchange is not None:

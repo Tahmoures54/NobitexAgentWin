@@ -122,18 +122,44 @@ class PaperTradingPanel(tk.Frame):
         try:
             cfg = getattr(self.main_app, "_bot_cfg", None)
             if cfg is not None:
-                obs_need = float(getattr(cfg, "min_observed_move_pct", 0.7) or 0.7)
-                self.tracker.pump_threshold_pct = obs_need
+                try:
+                    from trading.bot_config import apply_to_tracker
+                    apply_to_tracker(cfg, self.tracker, is_live_exchange=False)
+                except Exception:
+                    effective = {}
+                    try:
+                        effective = cfg._effective_raw_trend_settings()
+                    except Exception:
+                        pass
+                    self.tracker.raw_trend_only = bool(
+                        getattr(cfg, "raw_scan_trend_enabled", False)
+                    )
+                    self.tracker.threshold_percent = float(
+                        effective.get("threshold_percent", getattr(cfg, "min_observed_move_pct", 3.0))
+                    )
+                    self.tracker.min_consecutive_positive_scans = int(
+                        getattr(cfg, "min_consecutive_positive_scans", 3)
+                    )
+                    self.tracker.trend_lookback_scans = int(
+                        effective.get("trend_lookback_scans", getattr(cfg, "movement_lookback_scans", 6))
+                    )
+                    self.tracker.stop_loss_pct = float(
+                        effective.get("stop_loss_percent", getattr(cfg, "stop_loss_pct", 3.0))
+                    )
+                    self.tracker.trailing_distance_pct = float(
+                        effective.get("trailing_stop_percent", getattr(cfg, "trailing_distance_pct", 1.0))
+                    )
+                self.tracker.pump_threshold_pct = float(
+                    getattr(self.tracker, "threshold_percent", 3.0)
+                )
                 self.tracker.ignore_signal_filters = True
                 self.tracker.confirmation_enabled = False
-                self.tracker.stop_loss_pct = float(getattr(cfg, "stop_loss_pct", 1.8) or 1.8)
-                self.tracker.trailing_distance_pct = float(
-                    getattr(cfg, "trailing_distance_pct", 0.5) or 0.5
-                )
                 self.tracker.trailing_activation_pct = float(
-                    getattr(cfg, "trailing_activation_pct", 0.8) or 0.8
+                    getattr(cfg, "trailing_activation_pct", 2.0) or 2.0
                 )
-                self.tracker.trailing_stop_enabled = True
+                self.tracker.trailing_stop_enabled = bool(
+                    getattr(cfg, "trailing_stop_enabled", True)
+                )
                 self.tracker.take_profit_percent = float(
                     getattr(cfg, "take_profit_percent", 0.0) or 0.0
                 )

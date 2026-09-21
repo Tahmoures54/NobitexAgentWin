@@ -1,188 +1,165 @@
-# CryptoScanner 7.0.0 — Nobitex IRT Edition
+# CryptoScanner 6.1.0 — Nobitex IRT raw-scan strategy
 
-CryptoScanner is a Windows-friendly spot scanner and trading assistant built specifically for **Nobitex and the IRT market**.
+CryptoScanner is a Windows-friendly spot scanner and trading assistant for **Nobitex IRT**. The 6.1 strategy is deliberately based on real movement already observed by the scanner. It is not a prediction system and it is not a profit guarantee.
 
-## Important
+> Cryptocurrency trading can lose money. Profitability must be measured from paper results after fees and slippage; it cannot be guaranteed by this project.
 
-This project is a trading system, **not a profit guarantee**. Cryptocurrency markets can move rapidly and losses can exceed expectations. The release improves execution discipline and operational safety; it does not promise profitability.
+## What 6.1 does
 
-**Production docs:** [PRODUCTION.md](PRODUCTION.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md)
+The strict Nobitex trend path uses only:
 
-**Nobitex paper test:** [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md) · run `python tools/nobitex_preflight.py` before starting the bot.
+- the price observed on each completed scanner cycle;
+- the scanner-owned per-symbol scan history;
+- a configured positive scan streak;
+- higher highs and higher lows in the recent raw scan window; and
+- a **simple average of previous scans** as the baseline.
 
-## What this release includes
+A long entry is allowed only when all of the following are true:
 
-### v7.0 — L2 order-flow microstructure gate
+1. enough valid scans exist for the configured lookback;
+2. the current observed move is **strictly above** `threshold_percent`;
+3. the required number of consecutive scan-to-scan moves is positive;
+4. recent raw prices contain higher highs and higher lows;
+5. the current price is above the mean of the previous scans; and
+6. that previous-scan mean is rising.
 
-Candidate BUY entries are now confirmed against Nobitex top-of-book pressure. The
-gate derives visible bid/ask depth imbalance, spread and microprice bias into an
-interpretable 0–100 order-flow score and rejects weak visible demand before
-execution. It is deliberately a **confirmation layer**: regime selection, realized
-strategy performance, sizing, stops, accounting and the v6.9.1 profitability
-guards all remain in control.
+Negative, flat, weak, below-threshold, below-average, structurally incomplete, or unconfirmed symbols remain non-tradable. A move exactly equal to the threshold is rejected.
 
-Two further entry-side filters ship with it: a three-scan confirmation queue (a
-mover must persist for `min_confirm_scans` consecutive scans within
-`confirmation_max_minutes` before it can be bought) and a conservative online
-logistic trade-outcome learner that abstains until it has seen
-`ml_min_samples=30` closed trades. Neither changes sizing or exits.
+The strategy does **not** add RSI, MACD, EMA, Bollinger Bands, Fibonacci, another technical indicator, price prediction, AI, or machine learning. The only trend baseline is the simple mean of prior scan prices. Existing spread, quote-volume, order-book-depth, and account-risk checks may still reject an otherwise confirmed candidate as an execution-safety measure; they never create a trend signal.
 
-> The 100-day x 18-market study behind v6.9.1 (`PROFITABILITY_ANALYSIS.md`) still
-> finds every realistic arm net negative. These gates reduce how often the bot
-> trades; they are not an edge and not a profitability claim.
+## Default 6.1 profile
 
-### v6.9 — Profitability-aware strategy switching
-
-The adaptive layer now uses realized closed-trade performance in addition to market regime. A strategy needs a minimum sample before its results can influence switching; negative realized expectancy can veto a regime-selected strategy in favor of a positive, sufficiently sampled alternative. Switch hysteresis prevents scan-to-scan flapping. The selected strategy is recorded with new trades so future performance is attributable to the strategy that actually generated the entry.
-
-### Venue isolation
-Nobitex only: market stats, order book, candles, balances, spot orders, status and cancel.
-
-### Strategy behavior (default profile)
-1. Enter on **real observed local move** (3% in the shipped profile), not micro-noise.
-2. Reject wide spread, weak volume, and excessive chase.
-3. **Order-flow gate**: require a minimum L2 microstructure score (58/100) and a
-   sane top-of-book spread before a BUY is allowed.
-4. **Three-scan confirmation**: the move must persist across 3 consecutive scans
-   within a 10-minute window, and an online learner (once it has 30+ closed
-   trades) must put the probability of a positive net outcome at ≥ 0.58.
-5. **Cost guard**: reject an entry whose observed move is less than `min_edge_multiple` × the round-trip cost (2 × fee + spread), or whose trailing gap cannot pay for the round trip at all. Skips are logged as `cost_guard`.
-6. Place a **hard stop** on entry (default 3%).
-7. **Trail the stop** when in profit (activate 3.0%, distance 2.0% — the armed level is floored at the entry price, so the smallest trailing win is ~+1% gross, above the ~0.8% round trip).
-8. Take-profit percent default **0** — primary exit is the trailing stop; `max_hold_minutes` (360 in the shipped profile) closes positions that never develop. The 2 h / 6 h / uncapped sensitivity behind that choice is in `PROFITABILITY_ANALYSIS.md` §11-6: a tighter cap pre-empts the trailing stop on most trades, a missing cap leaves dead positions open for days — and neither turns the economics positive.
-9. **Expectancy guard**: if the mean net P&L of the last `expectancy_guard_trades` closed trades falls below `expectancy_guard_min_expectancy_pct`, new entries stop and `halt_reason` records why.
-10. Paper mode now pays `paper_half_spread_pct` on every simulated fill (entry and exit), so paper results are not optimistically biased.
-11. BTC dump guard + limited Eagle exception for strong liquid movers.
-12. Optional adaptive path: `RegimeDetector` → `StrategySelector` → `ConfidenceScorer` → `AutoRiskEngine` via `AdaptivePipeline`.
-
-Auto-regime switching rewrites only the keys listed in `regime_controlled_keys` (default: `max_open_positions`); set `regime_auto_apply_all: true` for the legacy behaviour where a preset replaces the whole profile.
-
-**Before running against Nobitex:** `python tools/nobitex_preflight.py` — see [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md).
-
-### Phase-1 production hardening
-Structured logging, rate limiter, retry policy, SQLite ledger, idempotency, graceful shutdown, watchdog.
-
-### Phase-2 adaptive modules
-`tech_regime`, `strategy_selector`, `auto_risk`, `confidence`, `adaptive_pipeline`.
-
-## Default risk snapshot (`data/bot_config.json`)
+The shipped `data/bot_config.json` starts in paper mode with these raw-trend defaults:
 
 | Setting | Default |
-|---------|---------|
+|---|---:|
 | Execution mode | **paper** |
-| Position sizing | `risk_percent` (0.5% risk/trade) |
+| Quote / venue | Nobitex **IRT / Rial** spot |
+| Raw trend enabled | yes |
+| Movement threshold | 3% |
+| Consecutive positive scans | 3 |
+| Lookback | 6 scans |
 | Stop loss | 3% |
-| Trailing | on — act 3.0% / dist 2.0% |
-| Take profit | 0 (trail-driven exits) |
-| Time stop | `max_hold_minutes` 360 |
-| Max open positions | 2 |
-| Max total exposure | 30% |
-| Max new entries / cycle | 1 |
-| Entry move | 3% observed, 3 confirming scans |
-| Order-flow gate | on — min score 58 |
-| Online ML gate | on — ≥ 0.58, abstains under 30 samples |
-| Fee model (sim) | 0.25% + 0.15% half-spread per fill |
+| Trailing stop | enabled, 1% distance (can be disabled) |
+| Risk per trade | 0.5% |
+| Maximum open positions | 2 |
+| Cooldown | 30 minutes |
+| Scan interval | 10 seconds |
+| Whitelist / blacklist | empty / empty |
+| Max total exposure | 30% in the shipped profile |
 
-Validate on your account size in paper before any live change.
+The persistent scanner history is written to `data/scan_history.json` (ignored by Git). It is bounded per symbol and written atomically. A restart therefore does not turn an already-observed trend into a new single-tick signal.
 
-**IRT note:** API amounts are rial-compatible. Do **not** divide order size by 10 before sending to Nobitex.
+## Exits and risk controls
 
-## Security
+- **Stop loss:** a long position is closed when the observed price reaches the configured stop.
+- **Trend break:** an open position is closed when the shared raw assessment detects a broken lower structure or price below the previous-scan mean.
+- **Optional trailing stop:** when enabled and activated, the stop follows a new observed high and never moves below the entry price.
+- **Position limits:** maximum open positions, entries per cycle, per-position notional, total exposure, minimum order value, cooldowns, and drawdown halt are applied before an order.
+- **Paper accounting:** paper fills use the configured fee and optional half-spread model. Review realized net P&L, win rate, drawdown, fees, and exit-reason breakdown rather than a theoretical signal count.
 
-- Prefer `NOBITEX_API_KEY` / `NOBITEX_PRIVATE_KEY` or the encrypted local store
-- API permissions: **READ + TRADE**, never WITHDRAW
-- Keep PC clock in sync
-- See [SECURITY.md](SECURITY.md)
+The strategy does not promise that any stop or filter will make the system profitable.
 
-## Installation
+## Paper first, live only by explicit activation
 
-Python 3.11+ recommended (3.13 supported).
+1. Keep **Execution mode = Paper** and run enough scans to accumulate the configured lookback.
+2. Measure closed-trade results after fees and realistic spread assumptions. Save the paper database/log for review.
+3. Check that the confirmed-entry, rejected-entry, stop-loss, and trend-break behavior is understood.
+4. Only after paper review, switch to **Live Nobitex** in Bot Settings.
+5. Press **Start** on the Real tab. This is the explicit live activation step; connecting an API account alone does not arm orders.
+6. Start with a small allocation, verify the first fill and protective stop, and keep withdrawals disabled on the API key.
+
+Paper and live entries are mutually exclusive. Pausing new live entries does not discard existing positions: their stop, trailing, and trend-break exits must remain monitorable. The application does not bypass `emergency_halt.py` or any existing halt/safety gate.
+
+### IRT / Rial accounting
+
+Nobitex IRT order and risk amounts stay in Rial-compatible IRT units. Toman is display-only. **Do not divide an order amount or price by ten before sending it to Nobitex.** The UI labels quote amounts as IRT (Rial).
+
+## Configuration names
+
+Canonical raw-trend settings are:
+
+```text
+threshold_percent
+min_consecutive_positive_scans
+trend_lookback_scans
+stop_loss_percent
+trailing_stop_percent
+risk_per_trade_percent
+max_open_positions
+cooldown_minutes
+scan_interval_seconds
+symbol_whitelist
+symbol_blacklist
+raw_scan_trend_enabled
+scan_history_file
+```
+
+The GUI also keeps older profile aliases (`pump_threshold_pct`, `movement_lookback_scans`, `stop_loss_pct`, and similar) synchronized for compatibility. Lists accept comma-separated symbols such as `BTC, ETH, SOL`; an empty whitelist means all symbols except the blacklist.
+
+Never put API keys in source control. Use the encrypted local credential store or the environment/configuration flow, with Nobitex permissions **READ + TRADE only** and no withdrawal permission.
+
+## Installation and execution
+
+Python 3.11+ is recommended (3.13 is supported).
 
 ```bat
 py -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+py main.py
 ```
 
-## Nobitex paper-data capture
+Before any live use, run the read-only preflight:
 
-For a real-market observation session the repository includes a **read-only**
-recorder. It never places or cancels orders — it only reads public market stats and
-the L2 order book, and writes IRT movers plus order-flow pressure to a CSV so a
-paper session can be measured against real Nobitex conditions.
+```bat
+python tools\nobitex_preflight.py
+```
+
+The repository also includes a read-only paper-data recorder. It reads public Nobitex market data and writes a CSV; it never places or cancels orders:
 
 ```bat
 py tools\nobitex_paper_capture.py --hours 8 --interval 15 --top 40
 ```
 
-Output defaults to `data/nobitex_paper_capture.csv`; candidates are filtered at
-**3% reported market change** by default. Keep the application in **paper**
-execution mode while capturing.
+## Validation and tests
 
-## Run
+Run the full suite from the repository root:
 
 ```bat
-py main.py
-py main.py --debug --log logs\scanner.log
 python -m pytest -q
 ```
 
-Paper mode is the default. Follow [PRODUCTION.md](PRODUCTION.md) before enabling live.
+The raw-trend tests cover a confirmed entry, invalid/negative/below-threshold/unconfirmed rejection, stop-loss exit, and trend-break exit. Static checks should also include Python compilation/import checks before a release.
 
-## Live enable (short)
+## Measuring results
 
-1. Paper sample with fees included  
-2. Key = READ+TRADE only  
-3. Confirm balance, stops, exposure caps  
-4. Small allocation first  
-5. Verify fill + protective stop on first live entry  
+A result report should record the paper period, number of completed scans, confirmed and rejected candidates by reason, open/closed trades, net P&L after fees/spread, win rate, average win/loss, expectancy, maximum drawdown, exposure, and exits by stop/trend-break/trailing reason. Do not call a configuration profitable from a handful of signals, and do not promote it to live without measured paper evidence.
 
-## Project layout (abbrev.)
+## Project layout
 
 ```text
-main.py
-PRODUCTION.md / SECURITY.md / CHANGELOG.md
-core/          # config, logger, database, shutdown
-trading/       # nobitex client, momentum, regime, pipeline, risk
-gui/
-tests/
-data/bot_config.json
+analysis/raw_trend.py                 # shared raw-price assessment
+analysis/signals.py                   # raw strategy routing and aliases
+analysis/risk.py                      # stop, trailing, and IRT sizing helpers
+core/irt_money.py                     # Decimal-safe IRT/Rial helpers
+trading/nobitex_momentum_engine.py    # scanner entry gates and history
+trading/regime_detector.py             # raw scan regime context
+trading/scan_history.py                # atomic persistent scan history
+trading/trader.py                      # guarded Nobitex execution adapter
+signal_tracker.py                      # paper/live ledger, entries, exits
+trading/bot_config.py                  # settings, migration, validation
+trading/emergency_halt.py              # existing emergency halt path
+
+gui/                                   # settings, paper, and live panels
+tests/                                 # regression and strategy tests
+data/bot_config.json                   # paper-first shipped profile
+data/config.ini                        # portable raw-trend defaults
 ```
 
-## Operational sequence
+**Operational sequence:** **Paper → measure after costs → review → optionally enable Live explicitly → scale only with evidence.**
 
-**Paper → measure expectancy (after fees) → tune → small live → scale only with evidence**
+## Security and production references
 
-
-## v6.8 — Actual-Fill Accounting & P&L
-
-The live trading panel now surfaces accounting derived from actual Nobitex execution data:
-
-- Realized and unrealized P&L in the configured quote currency.
-- Reported trading fees, without inventing missing fee data.
-- Weighted-average cost basis for spot holdings.
-- Wallet-vs-ledger reconciliation and discrepancy count.
-- A visible accounting completeness state and last-refresh timestamp.
-- Manual refresh plus a background refresh every 30 seconds while the live panel is open.
-
-Accounting is separate from the strategy journal and is intended to reflect exchange execution economics rather than planned order values.
-
-## v6.7 Portfolio Reconciliation
-
-The live Nobitex cycle now treats the exchange wallet as the account source of truth.
-
-- Periodic portfolio reconciliation every few scans (configurable).
-- Immediate reconciliation after BUY/close/resize mutations.
-- Available and total wallet values are tracked separately.
-- Non-quote assets are valued from current Nobitex tickers.
-- Open orders are captured with the portfolio snapshot.
-- Internal live positions are reconciled against the same wallet snapshot.
-- External holdings remain visible as exchange assets rather than being invented as bot trades.
-- Missing market prices leave an asset explicitly unpriced; the account is not falsely marked fully valued.
-- A failed portfolio read never becomes a zero-balance signal.
-- The total-wallet snapshot is reused so one reconciliation cycle does not make one wallet request per asset.
-
-The default cadence is every 3 scans with a minimum 30-second interval. A trade mutation forces an immediate reconciliation.
-
-Live execution remains opt-in and must still pass the existing safety gates.
+See [PRODUCTION.md](PRODUCTION.md), [SECURITY.md](SECURITY.md), [NOBITEX_TEST_READINESS.md](NOBITEX_TEST_READINESS.md), and [CHANGELOG.md](CHANGELOG.md) for exchange setup, security, and operational details.

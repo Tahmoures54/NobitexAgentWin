@@ -1598,25 +1598,27 @@ class BotSettingsWindow(BaseDialog):
 
         tk.Label(
             sf,
-            text="Enter forming moves early. Strong 1h pumps skip extra confirm. Tight trail locks small winners.",
+            text=(
+                "Strict raw-scan mode uses only completed Nobitex prices: threshold, "
+                "positive streak, higher highs/lows and the mean of prior scans. "
+                "No indicator or forecast is used."
+            ),
             font=T.font(size=T.FONT_XS),
-            bg=T.BG_APP, fg=T.TEXT_MUTED,
+            bg=T.BG_APP, fg=T.TEXT_MUTED, wraplength=620, justify="left",
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, T.PAD_SM))
 
         self._strategy_vars: Dict[str, tk.Variable] = {}
         row = 1
         float_fields = [
-            ("pump_threshold_pct", "Nobitex momentum threshold (%)", 1.2),
-            ("min_observed_move_pct", "Min observed Nobitex move (%)", 0.7),
-            ("max_nobitex_spread_pct", "Max Nobitex spread (%)", 1.2),
-            ("min_volume_irt", "Min Nobitex 24h volume (IRT)", 300000000.0),
-            ("max_market_data_age_sec", "Max Nobitex market-data age (sec)", 30.0),
-            ("btc_max_dump_pct", "Skip alts if BTC dumps more than (%)", 1.0),
+            ("max_spread_pct", "Maximum observed Nobitex spread (%)", 0.9),
+            ("min_volume_irt", "Minimum Nobitex 24h volume (IRT)", 300000000.0),
+            ("max_market_data_age_sec", "Maximum Nobitex market-data age (sec)", 300.0),
+            ("btc_max_dump_pct", "Skip alts if BTC dumps more than (%)", 2.5),
         ]
         int_fields = [
-            ("check_interval_seconds", "Live scan interval (sec)", 15),
-            ("movement_lookback_scans", "Lookback scans for observed move", 4),
-            ("min_confirm_scans", "Trend confirm scans (hold the move)", 1),
+            ("scan_interval_seconds", "Raw scan interval (sec)", 10),
+            ("trend_lookback_scans", "Raw trend lookback scans", 6),
+            ("min_consecutive_positive_scans", "Required consecutive positive scans", 3),
             ("max_new_entries_per_cycle", "Max new entries per scan", 1),
         ]
         for key, label, default in float_fields:
@@ -1638,9 +1640,33 @@ class BotSettingsWindow(BaseDialog):
             self._strategy_vars[key] = var
             row += 1
 
+        self._raw_scan_var = tk.BooleanVar(
+            value=bool(getattr(self.config, "raw_scan_trend_enabled", True))
+        )
+        ttk.Checkbutton(
+            sf,
+            text="Enable strict raw-scan trend entries (recommended; paper first)",
+            variable=self._raw_scan_var,
+        ).grid(row=row, column=1, sticky="w", pady=T.PAD_XS)
+        row += 1
+
+        for key, label in (
+            ("symbol_whitelist", "Whitelist symbols (comma separated; empty = all)"),
+            ("symbol_blacklist", "Blacklist symbols (comma separated)"),
+        ):
+            tk.Label(sf, text=label + ":", font=T.font(size=T.FONT_SM),
+                     bg=T.BG_APP, fg=T.TEXT_SECONDARY).grid(
+                row=row, column=0, sticky="w", pady=T.PAD_XS)
+            values = getattr(self.config, key, []) or []
+            var = tk.StringVar(value=", ".join(str(value) for value in values))
+            ttk.Entry(sf, textvariable=var, width=32).grid(
+                row=row, column=1, sticky="ew", padx=T.PAD_SM, pady=T.PAD_XS)
+            setattr(self, f"_{key}_var", var)
+            row += 1
+
         tk.Label(
             sf,
-            text="Live Start on the Real tab sends Nobitex orders. Saving Live here only switches mode; entries stay paused until Start.",
+            text="Live Start on the Real tab sends Nobitex orders. Saving Live only switches mode; entries stay paused until Start.",
             font=T.font(size=T.FONT_XS),
             bg=T.BG_APP, fg=T.TEXT_MUTED, wraplength=620, justify="left",
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(T.PAD_SM, 0))
@@ -1749,11 +1775,27 @@ class BotSettingsWindow(BaseDialog):
             self._risk_vars[key] = var
             row += 1
 
+        self._trailing_enabled_var = tk.BooleanVar(
+            value=bool(getattr(self.config, "trailing_stop_enabled", True))
+        )
+        ttk.Checkbutton(
+            rf,
+            text="Enable optional trailing stop",
+            variable=self._trailing_enabled_var,
+        ).grid(row=row, column=1, sticky="w", pady=T.PAD_XS)
+        row += 1
+
         tk.Label(
-            rf, text="Pump Threshold %:", font=T.font(size=T.FONT_SM),
+            rf, text="Raw movement threshold %:", font=T.font(size=T.FONT_SM),
             bg=T.BG_APP, fg=T.TEXT_SECONDARY,
         ).grid(row=row, column=0, sticky="w", pady=T.PAD_XS)
-        self._pump_var = tk.DoubleVar(value=float(getattr(self.config, "pump_threshold_pct", 5.0)))
+        effective = (
+            self.config._effective_raw_trend_settings()
+            if hasattr(self.config, "_effective_raw_trend_settings") else {}
+        )
+        self._pump_var = tk.DoubleVar(
+            value=float(effective.get("threshold_percent", getattr(self.config, "pump_threshold_pct", 3.0)))
+        )
         ttk.Entry(rf, textvariable=self._pump_var, width=12).grid(
             row=row, column=1, sticky="w", padx=T.PAD_SM, pady=T.PAD_XS
         )
@@ -1911,9 +1953,11 @@ class BotSettingsWindow(BaseDialog):
         if "trailing_activation_pct" in self._risk_vars:
             self._risk_vars["trailing_activation_pct"].set(defaults.trailing_activation_pct)
         self._risk_vars["max_drawdown_percent"].set(defaults.max_drawdown_percent)
+        if hasattr(self, "_trailing_enabled_var"):
+            self._trailing_enabled_var.set(defaults.trailing_stop_enabled)
 
         # ── Strategy thresholds ──
-        self._pump_var.set(defaults.pump_threshold_pct)
+        self._pump_var.set(defaults.threshold_percent)
         self._take_profit_var.set(defaults.take_profit_percent)
 
         # ── Position sizing ──
@@ -1936,15 +1980,13 @@ class BotSettingsWindow(BaseDialog):
         # reset them from the canonical defaults (BotConfig + EAGLE_DEFAULTS).
         if hasattr(self, "_strategy_vars"):
             defaults_map = {
-                "pump_threshold_pct":        defaults.pump_threshold_pct,
-                "min_observed_move_pct":     defaults.min_observed_move_pct,
-                "max_nobitex_spread_pct":    defaults.max_nobitex_spread_pct,
+                "max_spread_pct":            defaults.max_spread_pct,
                 "min_volume_irt":            defaults.min_volume_irt,
-                "max_market_data_age_sec":   30.0,
+                "max_market_data_age_sec":   defaults.max_market_data_age_sec,
                 "btc_max_dump_pct":          defaults.btc_max_dump_pct,
-                "check_interval_seconds":    defaults.check_interval_seconds,
-                "movement_lookback_scans":   defaults.movement_lookback_scans,
-                "min_confirm_scans":         defaults.min_confirm_scans,
+                "scan_interval_seconds":     defaults.scan_interval_seconds,
+                "trend_lookback_scans":      defaults.trend_lookback_scans,
+                "min_consecutive_positive_scans": defaults.min_consecutive_positive_scans,
                 "max_new_entries_per_cycle": defaults.max_new_entries_per_cycle,
                 # Eagle exception knobs
                 "eagle_min_observed_move_pct": EAGLE_DEFAULTS["eagle_min_observed_move_pct"],
@@ -1957,6 +1999,13 @@ class BotSettingsWindow(BaseDialog):
                     self._strategy_vars[key].set(value)
 
         # ── Execution mode / sizing mode ──
+        if hasattr(self, "_raw_scan_var"):
+            self._raw_scan_var.set(defaults.raw_scan_trend_enabled)
+        if hasattr(self, "_symbol_whitelist_var"):
+            self._symbol_whitelist_var.set(", ".join(defaults.symbol_whitelist))
+        if hasattr(self, "_symbol_blacklist_var"):
+            self._symbol_blacklist_var.set(", ".join(defaults.symbol_blacklist))
+
         if hasattr(self, "_execution_mode_var"):
             self._execution_mode_var.set(PAPER)
         if hasattr(self, "_position_size_mode_var"):
@@ -2006,7 +2055,12 @@ class BotSettingsWindow(BaseDialog):
             except (ValueError, tk.TclError):
                 logger.warning("Invalid value for %s, using default.", key)
 
-        self.config.pump_threshold_pct = self._get_float_or(self._pump_var, 5.0)
+        raw_threshold = self._get_float_or(self._pump_var, 3.0)
+        self.config.threshold_percent = raw_threshold
+        self.config.pump_threshold_pct = raw_threshold
+        self.config.trailing_stop_enabled = bool(
+            self._trailing_enabled_var.get() if hasattr(self, "_trailing_enabled_var") else True
+        )
         self.config.take_profit_percent = self._get_float_or(self._take_profit_var, 0.0)
         self.config.fixed_position_quote = self._money_from_display(
             self._fixed_position_var.get(), 10000000.0
@@ -2029,8 +2083,9 @@ class BotSettingsWindow(BaseDialog):
             float(self.config.fixed_position_quote or 0.0),
         )
         self.config.min_volume_24h = self._get_float_or(self._min_volume_var, 100000.0)
-        self.config.cooldown_after_loss_min = self._get_int_or(self._cooldown_loss_var, 15)
+        self.config.cooldown_after_loss_min = self._get_int_or(self._cooldown_loss_var, 30)
         self.config.cooldown_after_win_min = self._get_int_or(self._cooldown_win_var, 15)
+        self.config.cooldown_minutes = self.config.cooldown_after_loss_min
 
         if hasattr(self, "_nobitex_market_var"):
             self.config.nobitex_market = self._nobitex_market_var.get()
@@ -2061,14 +2116,41 @@ class BotSettingsWindow(BaseDialog):
         self.config.execution_mode = mode
         self.config.enable_auto_trading = True
         int_keys = {
-            "check_interval_seconds", "movement_lookback_scans",
-            "max_new_entries_per_cycle", "min_confirm_scans",
+            "scan_interval_seconds", "trend_lookback_scans",
+            "min_consecutive_positive_scans", "max_new_entries_per_cycle",
         }
         for key, var in getattr(self, "_strategy_vars", {}).items():
             if key in int_keys:
-                setattr(self.config, key, self._get_int_or(var, int(getattr(self.config, key, 1))))
+                value = self._get_int_or(var, int(getattr(self.config, key, 1)))
             else:
-                setattr(self.config, key, self._get_float_or(var, float(getattr(self.config, key, 0.0))))
+                value = self._get_float_or(var, float(getattr(self.config, key, 0.0)))
+            setattr(self.config, key, value)
+
+        # Keep historical profile names synchronized with the canonical raw
+        # trend controls.  Older panels and saved profiles still read these
+        # aliases, while the engine receives the canonical values.
+        self.config.check_interval_seconds = int(self.config.scan_interval_seconds)
+        self.config.movement_lookback_scans = int(self.config.trend_lookback_scans)
+        self.config.min_confirm_scans = int(self.config.min_consecutive_positive_scans)
+        self.config.risk_per_trade_percent = float(
+            getattr(self.config, "risk_per_trade_pct", 0.5)
+        )
+        self.config.stop_loss_percent = float(getattr(self.config, "stop_loss_pct", 3.0))
+        self.config.trailing_stop_percent = float(
+            getattr(self.config, "trailing_distance_pct", 1.0)
+        )
+        self.config.trailing_distance_pct = self.config.trailing_stop_percent
+        self.config.raw_scan_trend_enabled = bool(
+            self._raw_scan_var.get() if hasattr(self, "_raw_scan_var") else True
+        )
+        for key in ("symbol_whitelist", "symbol_blacklist"):
+            var = getattr(self, f"_{key}_var", None)
+            if var is not None:
+                setattr(
+                    self.config,
+                    key,
+                    [item.strip().upper() for item in str(var.get()).split(",") if item.strip()],
+                )
 
         from trading.bot_config import STRATEGY_DEFAULTS_VERSION
         self.config.strategy_defaults_version = max(

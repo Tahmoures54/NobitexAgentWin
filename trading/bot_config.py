@@ -40,7 +40,18 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field, asdict
 from cryptography.fernet import Fernet, InvalidToken
 
-from core.config import APPDATA_DIR
+from core.config import (
+    APPDATA_DIR,
+    DEFAULT_COOLDOWN_MINUTES,
+    DEFAULT_MAX_OPEN_POSITIONS,
+    DEFAULT_MIN_CONSECUTIVE_POSITIVE_SCANS,
+    DEFAULT_RISK_PER_TRADE_PERCENT,
+    DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_STOP_LOSS_PERCENT,
+    DEFAULT_THRESHOLD_PERCENT,
+    DEFAULT_TRAILING_STOP_PERCENT,
+    DEFAULT_TREND_LOOKBACK_SCANS,
+)
 from trading.execution_mode import PAPER, normalize_execution_mode
 
 if TYPE_CHECKING:
@@ -134,17 +145,32 @@ class BotConfig:
 
     # ── Account / Risk ───────────────────────────────────────
     account_balance: float = 10_000_000.0
-    risk_per_trade_pct: float = 0.75
-    max_open_positions: int = 3
+    risk_per_trade_pct: float = DEFAULT_RISK_PER_TRADE_PERCENT
+    max_open_positions: int = DEFAULT_MAX_OPEN_POSITIONS
     max_drawdown_percent: float = 10.0
     halt_on_max_drawdown: bool = True
 
-    # ── Pure Price Action / Real Movement Strategy ──────────
-    pump_threshold_pct: float = 1.5
-    movement_lookback_scans: int = 4
-    stop_loss_pct: float = 2.2
-    trailing_distance_pct: float = 1.2
-    trailing_activation_pct: float = 0.8
+    # ── User-facing raw scan trend strategy ─────────────────
+    # These names are the canonical names used by the 6.1 strategy brief.
+    # Legacy *_pct / movement_* aliases remain below for old profiles.
+    threshold_percent: float = DEFAULT_THRESHOLD_PERCENT
+    min_consecutive_positive_scans: int = DEFAULT_MIN_CONSECUTIVE_POSITIVE_SCANS
+    trend_lookback_scans: int = DEFAULT_TREND_LOOKBACK_SCANS
+    risk_per_trade_percent: float = DEFAULT_RISK_PER_TRADE_PERCENT
+    trailing_stop_percent: float = DEFAULT_TRAILING_STOP_PERCENT
+    cooldown_minutes: int = DEFAULT_COOLDOWN_MINUTES
+    scan_interval_seconds: int = DEFAULT_SCAN_INTERVAL_SECONDS
+    symbol_whitelist: List[str] = field(default_factory=list)
+    symbol_blacklist: List[str] = field(default_factory=list)
+    raw_scan_trend_enabled: bool = True
+    scan_history_file: str = field(default_factory=lambda: os.path.join(APPDATA_DIR, "scan_history.json"))
+
+    # ── Pure Price Action / Real Movement Strategy (legacy aliases) ───────
+    pump_threshold_pct: float = DEFAULT_THRESHOLD_PERCENT
+    movement_lookback_scans: int = DEFAULT_TREND_LOOKBACK_SCANS
+    stop_loss_pct: float = DEFAULT_STOP_LOSS_PERCENT
+    trailing_distance_pct: float = DEFAULT_TRAILING_STOP_PERCENT
+    trailing_activation_pct: float = 2.0
     trailing_stop_enabled: bool = True
     take_profit_percent: float = 0.0
 
@@ -391,9 +417,52 @@ class BotConfig:
             "explanation":          explanation,
         }
 
+    def _effective_raw_trend_settings(self) -> Dict[str, Any]:
+        """Resolve canonical 6.1 names and legacy profile names once."""
+        threshold = float(self.threshold_percent)
+        if threshold == DEFAULT_THRESHOLD_PERCENT and float(self.pump_threshold_pct) != DEFAULT_THRESHOLD_PERCENT:
+            threshold = float(self.pump_threshold_pct)
+        lookback = int(self.trend_lookback_scans)
+        if lookback == DEFAULT_TREND_LOOKBACK_SCANS and int(self.movement_lookback_scans) != DEFAULT_TREND_LOOKBACK_SCANS:
+            lookback = int(self.movement_lookback_scans)
+        risk = float(self.risk_per_trade_percent)
+        if risk == DEFAULT_RISK_PER_TRADE_PERCENT and float(self.risk_per_trade_pct) != DEFAULT_RISK_PER_TRADE_PERCENT:
+            risk = float(self.risk_per_trade_pct)
+        interval = int(self.scan_interval_seconds)
+        if interval == DEFAULT_SCAN_INTERVAL_SECONDS and int(self.check_interval_seconds) != DEFAULT_SCAN_INTERVAL_SECONDS:
+            interval = int(self.check_interval_seconds)
+        cooldown = int(self.cooldown_minutes)
+        if cooldown == DEFAULT_COOLDOWN_MINUTES and int(self.cooldown_after_loss_min) != DEFAULT_COOLDOWN_MINUTES:
+            cooldown = int(self.cooldown_after_loss_min)
+        stop = float(self.stop_loss_pct)
+        trailing = float(self.trailing_stop_percent)
+        if trailing == DEFAULT_TRAILING_STOP_PERCENT and float(self.trailing_distance_pct) != DEFAULT_TRAILING_STOP_PERCENT:
+            trailing = float(self.trailing_distance_pct)
+        return {
+            "threshold_percent": threshold,
+            "min_consecutive_positive_scans": int(self.min_consecutive_positive_scans),
+            "trend_lookback_scans": lookback,
+            "stop_loss_percent": stop,
+            "trailing_stop_percent": trailing,
+            "risk_per_trade_percent": risk,
+            "cooldown_minutes": cooldown,
+            "scan_interval_seconds": interval,
+        }
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d.pop("config_file", None)
+        effective = self._effective_raw_trend_settings()
+        d.update(effective)
+        # Keep legacy keys coherent for older installations that still read
+        # pump_threshold_pct/movement_lookback_scans/check_interval_seconds.
+        d["pump_threshold_pct"] = effective["threshold_percent"]
+        d["movement_lookback_scans"] = effective["trend_lookback_scans"]
+        d["stop_loss_pct"] = effective["stop_loss_percent"]
+        d["risk_per_trade_pct"] = effective["risk_per_trade_percent"]
+        d["check_interval_seconds"] = effective["scan_interval_seconds"]
+        d["cooldown_after_loss_min"] = effective["cooldown_minutes"]
+        d["trailing_distance_pct"] = effective["trailing_stop_percent"]
         return d
 
     @classmethod
@@ -401,6 +470,25 @@ class BotConfig:
         if not data:
             return cls()
         d = dict(data)
+        # Canonical raw-trend names are accepted alongside the historical
+        # profile names.  Explicit canonical values win over aliases.
+        canonical_to_legacy = {
+            "threshold_percent": "pump_threshold_pct",
+            "trend_lookback_scans": "movement_lookback_scans",
+            "stop_loss_percent": "stop_loss_pct",
+            "trailing_stop_percent": "trailing_distance_pct",
+            "risk_per_trade_percent": "risk_per_trade_pct",
+            "scan_interval_seconds": "check_interval_seconds",
+            "cooldown_minutes": "cooldown_after_loss_min",
+        }
+        for canonical, legacy in canonical_to_legacy.items():
+            if canonical in d and legacy not in d:
+                d[legacy] = d[canonical]
+            elif legacy in d and canonical not in d:
+                # Migrate an older profile into the canonical field as well;
+                # after this point canonical values are the single source of
+                # truth and the effective-settings helper need not guess.
+                d[canonical] = d[legacy]
         _ALIASES = {
             "stop_loss_percent": "stop_loss_pct",
             "risk_per_trade": "risk_per_trade_pct",
@@ -421,13 +509,15 @@ class BotConfig:
 
         _int_fields = {
             "max_open_positions", "kline_limit", "movement_lookback_scans",
-            "check_interval_seconds", "entry_cooldown_seconds",
-            "cooldown_after_loss_min", "cooldown_after_win_min",
+            "trend_lookback_scans", "min_consecutive_positive_scans",
+            "scan_interval_seconds", "cooldown_minutes", "check_interval_seconds",
+            "entry_cooldown_seconds", "cooldown_after_loss_min", "cooldown_after_win_min",
             "max_new_entries_per_cycle", "confirmation_max_minutes", "ml_min_samples",
             "market_scan_limit", "min_confirm_scans", "strategy_defaults_version",
         }
         _float_fields = {
-            "account_balance", "risk_per_trade_pct", "stop_loss_pct",
+            "account_balance", "risk_per_trade_pct", "risk_per_trade_percent",
+            "threshold_percent", "trailing_stop_percent", "stop_loss_pct",
             "max_drawdown_percent", "fixed_position_quote", "max_position_pct",
             "min_notional_quote", "max_notional_quote", "max_total_exposure_pct",
             "min_volume_24h", "min_market_cap", "pump_threshold_pct",
@@ -447,7 +537,7 @@ class BotConfig:
             "trailing_stop_enabled", "confirmation_enabled", "ml_enabled",
             "reverse_signal_exit_enabled", "use_risk_filter",
             "btc_dump_exception_enabled",
-            "auto_regime_strategy",
+            "auto_regime_strategy", "raw_scan_trend_enabled",
         }
 
         for k in _int_fields:
@@ -649,17 +739,29 @@ def apply_to_tracker(
     if cfg is None or tracker is None:
         return
 
-    tracker.pump_threshold_pct = float(
-        cfg.min_observed_move_pct if is_live_exchange else cfg.pump_threshold_pct
+    effective_trend = cfg._effective_raw_trend_settings()
+    tracker.raw_trend_only = bool(getattr(cfg, "raw_scan_trend_enabled", False))
+    tracker.threshold_percent = float(effective_trend["threshold_percent"])
+    tracker.min_consecutive_positive_scans = int(
+        getattr(cfg, "min_consecutive_positive_scans", 3)
     )
-    tracker.stop_loss_pct = float(cfg.stop_loss_pct)
-    tracker.trailing_distance_pct = float(cfg.trailing_distance_pct)
+    tracker.trend_lookback_scans = int(effective_trend["trend_lookback_scans"])
+    tracker.scan_interval_seconds = int(effective_trend["scan_interval_seconds"])
+    tracker.cooldown_minutes = int(effective_trend["cooldown_minutes"])
+    tracker.symbol_whitelist = list(getattr(cfg, "symbol_whitelist", []) or [])
+    tracker.symbol_blacklist = list(getattr(cfg, "symbol_blacklist", []) or [])
+    tracker.pump_threshold_pct = float(
+        effective_trend["threshold_percent"]
+        if is_live_exchange else effective_trend["threshold_percent"]
+    )
+    tracker.stop_loss_pct = float(effective_trend["stop_loss_percent"])
+    tracker.trailing_distance_pct = float(effective_trend["trailing_stop_percent"])
     tracker.trailing_activation_pct = float(cfg.trailing_activation_pct)
     tracker.trailing_stop_enabled = bool(cfg.trailing_stop_enabled)
     tracker.take_profit_percent = float(cfg.take_profit_percent)
     tracker.trading_fee_pct = float(cfg.trading_fee_pct)
 
-    tracker.risk_per_trade_pct = float(cfg.risk_per_trade_pct)
+    tracker.risk_per_trade_pct = float(effective_trend["risk_per_trade_percent"])
     tracker.max_open_trades = int(cfg.max_open_positions)
     tracker.max_drawdown_percent = float(cfg.max_drawdown_percent)
     tracker.max_total_exposure_pct = float(cfg.max_total_exposure_pct)
@@ -835,6 +937,20 @@ def save_config(config: BotConfig, file_path: str = DEFAULT_CONFIG_FILE) -> bool
 def validate_config(config: BotConfig) -> List[str]:
     errors: List[str] = []
     c = config or BotConfig()
+    effective = c._effective_raw_trend_settings()
+
+    if effective["threshold_percent"] <= 0:
+        errors.append("threshold_percent must be > 0.")
+    if effective["min_consecutive_positive_scans"] < 1:
+        errors.append("min_consecutive_positive_scans must be >= 1.")
+    if effective["trend_lookback_scans"] < 4:
+        errors.append("trend_lookback_scans must be >= 4.")
+    if effective["scan_interval_seconds"] < 1:
+        errors.append("scan_interval_seconds must be >= 1.")
+    if effective["cooldown_minutes"] < 0:
+        errors.append("cooldown_minutes must be >= 0.")
+    if not (0 < effective["risk_per_trade_percent"] <= 100):
+        errors.append("risk_per_trade_percent must be between 0 and 100.")
 
     if not (0 < c.risk_per_trade_pct <= 100):
         errors.append("risk_per_trade_pct must be between 0 and 100.")
@@ -844,8 +960,10 @@ def validate_config(config: BotConfig) -> List[str]:
         errors.append("portfolio_reconcile_min_interval_seconds must be >= 10.")
     if c.max_open_positions < 1:
         errors.append("max_open_positions must be >= 1.")
-    if c.stop_loss_pct <= 0:
-        errors.append("stop_loss_pct must be > 0.")
+    if effective["stop_loss_percent"] <= 0:
+        errors.append("stop_loss_percent must be > 0.")
+    if effective["trailing_stop_percent"] < 0:
+        errors.append("trailing_stop_percent must be >= 0.")
     if c.max_drawdown_percent <= 0:
         errors.append("max_drawdown_percent must be > 0.")
     if c.min_notional_quote > c.fixed_position_quote and c.position_size_mode == "fixed":

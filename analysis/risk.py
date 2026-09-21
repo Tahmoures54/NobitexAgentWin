@@ -990,6 +990,126 @@ class RiskTimeSeries:
 
 
 # ════════════════════════════════════════════════════════════
+# Raw scan trend risk helpers
+# ════════════════════════════════════════════════════════════
+
+def _positive_float(value: Any, name: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be numeric") from None
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"{name} must be positive")
+    return number
+
+
+def calculate_stop_loss(
+    entry_price: float,
+    stop_loss_percent: float,
+    side: str = "long",
+) -> float:
+    """Calculate a protective stop from IRT entry price, without prediction."""
+    entry = _positive_float(entry_price, "entry_price")
+    distance = _positive_float(stop_loss_percent, "stop_loss_percent") / 100.0
+    normalized_side = str(side or "long").lower()
+    if normalized_side == "long":
+        return entry * (1.0 - distance)
+    if normalized_side == "short":
+        return entry * (1.0 + distance)
+    raise ValueError("side must be 'long' or 'short'")
+
+
+def calculate_trailing_stop(
+    peak_price: float,
+    trailing_stop_percent: float,
+    *,
+    entry_price: Optional[float] = None,
+    side: str = "long",
+) -> float:
+    """Return a trailing stop, never weaker than the long entry price."""
+    peak = _positive_float(peak_price, "peak_price")
+    distance = _positive_float(trailing_stop_percent, "trailing_stop_percent") / 100.0
+    normalized_side = str(side or "long").lower()
+    if normalized_side == "long":
+        stop = peak * (1.0 - distance)
+        if entry_price is not None:
+            stop = max(stop, _positive_float(entry_price, "entry_price"))
+        return stop
+    if normalized_side == "short":
+        stop = peak * (1.0 + distance)
+        if entry_price is not None:
+            stop = min(stop, _positive_float(entry_price, "entry_price"))
+        return stop
+    raise ValueError("side must be 'long' or 'short'")
+
+
+def position_size_details(
+    *,
+    account_balance: float,
+    entry_price: float,
+    stop_loss_percent: float,
+    risk_per_trade_percent: float,
+    max_position_percent: float = 100.0,
+    max_total_exposure_percent: float = 100.0,
+    open_exposure_quote: float = 0.0,
+    min_notional_quote: float = 0.0,
+    max_notional_quote: float = 0.0,
+) -> Dict[str, float]:
+    """Size a long position in IRT from a fixed monetary risk budget.
+
+    The returned quantity is derived from the stop distance.  No Kelly,
+    forecast, win-rate or model output is used.  All inputs are quote amounts
+    in IRT/Rial; Nobitex IRT quantities must not be divided by ten.
+    """
+    balance = _positive_float(account_balance, "account_balance")
+    entry = _positive_float(entry_price, "entry_price")
+    stop_pct = _positive_float(stop_loss_percent, "stop_loss_percent")
+    risk_pct = _positive_float(risk_per_trade_percent, "risk_per_trade_percent")
+    if risk_pct > 100.0:
+        raise ValueError("risk_per_trade_percent must be <= 100")
+    position_cap_pct = max(0.0, min(100.0, float(max_position_percent)))
+    exposure_cap_pct = max(0.0, min(100.0, float(max_total_exposure_percent)))
+    open_exposure = max(0.0, float(open_exposure_quote or 0.0))
+
+    risk_amount = balance * risk_pct / 100.0
+    raw_notional = risk_amount / (stop_pct / 100.0)
+    position_cap = balance * position_cap_pct / 100.0
+    exposure_cap = max(0.0, balance * exposure_cap_pct / 100.0 - open_exposure)
+    notional = min(raw_notional, position_cap, exposure_cap, balance * 0.90)
+    if max_notional_quote and float(max_notional_quote) > 0:
+        notional = min(notional, float(max_notional_quote))
+    if min_notional_quote and notional < float(min_notional_quote):
+        notional = 0.0
+    quantity = notional / entry if notional > 0 else 0.0
+    stop_price = calculate_stop_loss(entry, stop_pct, "long")
+    return {
+        "quantity": quantity,
+        "notional_quote": notional,
+        "risk_amount_quote": notional * stop_pct / 100.0,
+        "stop_price": stop_price,
+        "entry_price": entry,
+        "stop_loss_percent": stop_pct,
+    }
+
+
+def calculate_position_size(
+    account_balance: float,
+    entry_price: float,
+    stop_loss_percent: float,
+    risk_per_trade_percent: float,
+    **kwargs: Any,
+) -> float:
+    """Compatibility wrapper returning only the base-asset quantity."""
+    return position_size_details(
+        account_balance=account_balance,
+        entry_price=entry_price,
+        stop_loss_percent=stop_loss_percent,
+        risk_per_trade_percent=risk_per_trade_percent,
+        **kwargs,
+    )["quantity"]
+
+
+# ════════════════════════════════════════════════════════════
 # PUBLIC API
 # ════════════════════════════════════════════════════════════
 
@@ -1179,4 +1299,8 @@ __all__ = [
     "StressTest",
     "DynamicThresholds",
     "RiskTimeSeries",
+    "calculate_stop_loss",
+    "calculate_trailing_stop",
+    "position_size_details",
+    "calculate_position_size",
 ]
