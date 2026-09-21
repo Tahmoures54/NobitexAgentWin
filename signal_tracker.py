@@ -2617,15 +2617,8 @@ class SignalTracker:
                     reason="trend_not_confirmed",
                 )
                 return
-            if not bool(row.get("TrendConfirmed", row.get("trend_confirmed", False))):
-                # A row produced by the engine is required to carry the
-                # auditable confirmation marker; this prevents a caller from
-                # bypassing structure checks with Signal='Buy Signal'.
-                self._log_skip("%s: missing engine trend confirmation", symbol, reason="trend_not_confirmed")
-                return
-            if bool(row.get("TrendBreak", row.get("trend_break", False))):
-                self._log_skip("%s: trend is broken", symbol, reason="trend_break")
-                return
+            # Soft structure and trend-break never veto a threshold-qualified
+            # long.  Trend-break remains an *exit* for already-open trades.
 
         volume = safe_float(row.get("24h Volume") or row.get("Volume") or row.get("volume")
                             or row.get("quote_volume") or row.get("volume_24h"))
