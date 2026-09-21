@@ -126,6 +126,7 @@ from trading.nobitex_momentum_engine import NobitexMomentumEngine
 from analysis.market_intelligence import calculate_early_mover_score, calculate_signal_intelligence_score
 from trading.regime_detector import (
     RegimeDetector,
+    RawScanRegimeDetector,
     REGIME_PRESETS,
     AGGRESSIVE,
     BALANCED,
@@ -243,7 +244,10 @@ class CryptoScannerApp:
         self.momentum_engine = None
         self._local_momentum_history = {}
 
-        self.regime_detector = RegimeDetector()
+        # The Nobitex IRT path uses raw scanner prices for regime context.
+        # The legacy RegimeDetector remains available for compatibility with
+        # older integrations, but is not part of the shipped trend path.
+        self.regime_detector = RawScanRegimeDetector()
         self.current_regime = BALANCED
         self._last_regime_info: Dict[str, Any] = {}
 
@@ -422,10 +426,19 @@ class CryptoScannerApp:
             if st is None:
                 continue
             try:
+                effective = cfg._effective_raw_trend_settings() if hasattr(cfg, "_effective_raw_trend_settings") else {}
+                st.raw_trend_only = bool(getattr(cfg, "raw_scan_trend_enabled", False))
+                st.threshold_percent = float(effective.get("threshold_percent", getattr(cfg, "pump_threshold_pct", 3.0)))
+                st.min_consecutive_positive_scans = int(getattr(cfg, "min_consecutive_positive_scans", 3) or 3)
+                st.trend_lookback_scans = int(effective.get("trend_lookback_scans", getattr(cfg, "movement_lookback_scans", 6)))
+                st.scan_interval_seconds = int(effective.get("scan_interval_seconds", getattr(cfg, "check_interval_seconds", 10)))
+                st.cooldown_minutes = int(effective.get("cooldown_minutes", getattr(cfg, "cooldown_after_loss_min", 30)))
+                st.symbol_whitelist = [str(v).strip().upper() for v in (getattr(cfg, "symbol_whitelist", []) or [])]
+                st.symbol_blacklist = [str(v).strip().upper() for v in (getattr(cfg, "symbol_blacklist", []) or [])]
                 # ── Stops / targets ──
-                st.stop_loss_pct = float(getattr(cfg, "stop_loss_pct", st.stop_loss_pct))
+                st.stop_loss_pct = float(effective.get("stop_loss_percent", getattr(cfg, "stop_loss_pct", st.stop_loss_pct)))
                 st.trailing_distance_pct = float(
-                    getattr(cfg, "trailing_distance_pct", st.trailing_distance_pct)
+                    effective.get("trailing_stop_percent", getattr(cfg, "trailing_distance_pct", st.trailing_distance_pct))
                 )
                 st.trailing_activation_pct = float(
                     getattr(cfg, "trailing_activation_pct", st.trailing_activation_pct)
@@ -440,17 +453,12 @@ class CryptoScannerApp:
                     getattr(cfg, "trading_fee_pct", st.trading_fee_pct)
                 )
                 # ── Entry thresholds ──
-                if is_live:
-                    st.pump_threshold_pct = float(
-                        getattr(cfg, "min_observed_move_pct", st.pump_threshold_pct)
-                    )
-                else:
-                    st.pump_threshold_pct = float(
-                        getattr(cfg, "pump_threshold_pct", st.pump_threshold_pct)
-                    )
+                st.pump_threshold_pct = float(
+                    effective.get("threshold_percent", getattr(cfg, "pump_threshold_pct", st.pump_threshold_pct))
+                )
                 # ── Risk ──
                 st.risk_per_trade_pct = float(
-                    getattr(cfg, "risk_per_trade_pct", st.risk_per_trade_pct)
+                    effective.get("risk_per_trade_percent", getattr(cfg, "risk_per_trade_pct", st.risk_per_trade_pct))
                 )
                 st.max_drawdown_percent = float(
                     getattr(cfg, "max_drawdown_percent", st.max_drawdown_percent)
@@ -748,7 +756,7 @@ class CryptoScannerApp:
 
         if regime != self.current_regime:
             logger.info(
-                "[REGIME] %s -> %s | score=%.1f breadth=%.2f btc24h=%.2f%% "
+                "[REGIME] %s -> %s | score=%.1f breadth=%.2f btc_scan=%.2f%% "
                 "strong_movers=%d top_move=%.2f%% "
                 "winrate=%.2f trades=%d dd=%.2f%%",
                 self.current_regime, regime,
@@ -953,19 +961,44 @@ class CryptoScannerApp:
         eagle_min_vol = float(getattr(cfg, "eagle_min_volume_irt", 300_000_000.0) or 300_000_000.0)
         eagle_max_spread = float(getattr(cfg, "eagle_max_spread_pct", 0.9) or 0.9)
 
+        effective = cfg._effective_raw_trend_settings() if hasattr(cfg, "_effective_raw_trend_settings") else {}
+        if isinstance(self.regime_detector, RawScanRegimeDetector):
+            self.regime_detector.threshold_percent = float(
+                effective.get("threshold_percent", self.regime_detector.threshold_percent)
+            )
+            self.regime_detector.min_consecutive_positive_scans = max(
+                1,
+                int(getattr(cfg, "min_consecutive_positive_scans", self.regime_detector.min_consecutive_positive_scans)),
+            )
+            self.regime_detector.trend_lookback_scans = max(
+                4,
+                int(effective.get("trend_lookback_scans", self.regime_detector.trend_lookback_scans)),
+            )
         kwargs = dict(
-            pump_threshold_pct=float(getattr(cfg, "pump_threshold_pct", 1.2)),
+            pump_threshold_pct=float(effective.get("threshold_percent", getattr(cfg, "pump_threshold_pct", 1.2))),
+            threshold_percent=float(effective.get("threshold_percent", getattr(cfg, "pump_threshold_pct", 1.2))),
             max_spread_pct=max(0.2, raw_spread),
             min_volume_irt=min_vol_irt,
             max_market_data_age_sec=max(raw_age, 180.0),
             min_local_volume_irt=min_vol_irt,
             max_local_fall_pct=float(getattr(cfg, "max_local_fall_pct", 0.8)),
             max_chase_pct=float(getattr(cfg, "max_chase_pct", 0.55)),
-            movement_lookback_scans=int(getattr(cfg, "movement_lookback_scans", 4) or 4),
+            movement_lookback_scans=int(effective.get("trend_lookback_scans", getattr(cfg, "movement_lookback_scans", 4)) or 4),
+            trend_lookback_scans=int(effective.get("trend_lookback_scans", getattr(cfg, "movement_lookback_scans", 4)) or 4),
             min_confirm_scans=int(getattr(cfg, "min_confirm_scans", 1) or 1),
-            min_observed_move_pct=float(getattr(cfg, "min_observed_move_pct", 0.7)),
+            min_consecutive_positive_scans=int(getattr(cfg, "min_consecutive_positive_scans", getattr(cfg, "min_confirm_scans", 3)) or 3),
+            min_observed_move_pct=float(effective.get("threshold_percent", getattr(cfg, "min_observed_move_pct", 0.7))),
             max_local_24h_pct=float(getattr(cfg, "max_local_24h_pct", 15.0)),
             btc_max_dump_pct=float(getattr(cfg, "btc_max_dump_pct", 1.5)),
+            raw_scan_trend_enabled=bool(getattr(cfg, "raw_scan_trend_enabled", True)),
+            require_trend_structure=bool(getattr(cfg, "raw_scan_trend_enabled", True)),
+            stop_loss_percent=float(effective.get("stop_loss_percent", getattr(cfg, "stop_loss_pct", 3.0))),
+            trailing_stop_percent=float(effective.get("trailing_stop_percent", getattr(cfg, "trailing_distance_pct", 1.0))),
+            scan_interval_seconds=int(effective.get("scan_interval_seconds", getattr(cfg, "check_interval_seconds", 10))),
+            cooldown_minutes=int(effective.get("cooldown_minutes", getattr(cfg, "cooldown_after_loss_min", 30))),
+            symbol_whitelist=list(getattr(cfg, "symbol_whitelist", []) or []),
+            symbol_blacklist=list(getattr(cfg, "symbol_blacklist", []) or []),
+            history_file=str(getattr(cfg, "scan_history_file", "") or "") or None,
             btc_dump_exception_enabled=eagle_enabled,
             eagle_min_observed_move_pct=eagle_min_obs,
             eagle_min_1h_pct=eagle_min_1h,
@@ -995,7 +1028,11 @@ class CryptoScannerApp:
         cfg = self._bot_cfg
         seconds = 20
         if cfg is not None:
-            seconds = int(getattr(cfg, "check_interval_seconds", 20) or 20)
+            try:
+                effective = cfg._effective_raw_trend_settings()
+                seconds = int(effective.get("scan_interval_seconds", 20))
+            except Exception:
+                seconds = int(getattr(cfg, "check_interval_seconds", 20) or 20)
         return max(10, min(seconds, 120)) * 1000
 
     @staticmethod
@@ -2573,6 +2610,17 @@ class CryptoScannerApp:
                 self.real_signal_tracker.allow_new_entries = False
             return False
         ready = self.real_signal_tracker is not None and self.trading_bot is not None
+        if enabled and ready and self.trading_bot is not None:
+            try:
+                if not self.trading_bot.enable_live_trading():
+                    logger.warning("[REAL] Live order activation failed; entries remain paused.")
+                    enabled = False
+            except Exception as exc:
+                logger.warning("[REAL] Live order activation failed: %s", exc)
+                enabled = False
+        # Pausing new entries must not disarm the execution layer: existing
+        # live positions still need their stop, trailing-stop, and trend-break
+        # exits while the panel is in monitor-only mode.
         self.real_auto_enabled = bool(enabled) and ready
         if self.real_signal_tracker is not None:
             self.real_signal_tracker.auto_trading_enabled = True

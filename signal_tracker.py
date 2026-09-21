@@ -32,6 +32,7 @@ import pandas as pd
 
 from core.config import APPDATA_DIR as CORE_APPDATA_DIR
 from core.utils import safe_float
+from analysis.raw_trend import TrendAssessment, assess_trend
 
 try:
     from trading.online_trade_learner import OnlineTradeLearner, trade_features_from_signal
@@ -131,6 +132,22 @@ class SignalTracker:
         self.max_open_trades = int(max_open_trades)
         self.min_volume_24h = float(min_volume_24h)
         self.min_market_cap = float(min_market_cap)
+
+        # ── strict raw scan trend controls ─────────────────────
+        # Disabled for direct legacy SignalTracker callers; the shipped
+        # BotConfig enables it and apply_to_tracker() copies every field.
+        self.raw_trend_only = False
+        self.threshold_percent = 3.0
+        self.min_consecutive_positive_scans = 3
+        self.trend_lookback_scans = 6
+        self.scan_interval_seconds = 10
+        self.cooldown_minutes = 30
+        self.symbol_whitelist: List[str] = []
+        self.symbol_blacklist: List[str] = []
+        self._raw_scan_history: Dict[str, collections.deque] = collections.defaultdict(
+            lambda: collections.deque(maxlen=120)
+        )
+        self._last_trend_assessments: Dict[str, TrendAssessment] = {}
 
         self.pump_threshold_pct = 5.0
         self.trailing_distance_pct = 0.5
@@ -700,6 +717,22 @@ class SignalTracker:
             return current
 
         self.max_open_trades = _num(("max_open_trades", "max_open_positions"), self.max_open_trades, int)
+        self.raw_trend_only = _bool("raw_scan_trend_enabled", self.raw_trend_only)
+        self.threshold_percent = _num(("threshold_percent", "pump_threshold_pct", "min_observed_move_pct"), self.threshold_percent)
+        self.min_consecutive_positive_scans = _num(
+            "min_consecutive_positive_scans", self.min_consecutive_positive_scans, int
+        )
+        self.trend_lookback_scans = _num(
+            ("trend_lookback_scans", "movement_lookback_scans"), self.trend_lookback_scans, int
+        )
+        self.scan_interval_seconds = _num(
+            ("scan_interval_seconds", "check_interval_seconds"), self.scan_interval_seconds, int
+        )
+        self.cooldown_minutes = _num("cooldown_minutes", self.cooldown_minutes, int)
+        if isinstance(cfg.get("symbol_whitelist"), list):
+            self.symbol_whitelist = [str(v).strip().upper() for v in cfg["symbol_whitelist"] if str(v).strip()]
+        if isinstance(cfg.get("symbol_blacklist"), list):
+            self.symbol_blacklist = [str(v).strip().upper() for v in cfg["symbol_blacklist"] if str(v).strip()]
         self.pump_threshold_pct = _num("pump_threshold_pct", self.pump_threshold_pct)
         self.trailing_distance_pct = _num("trailing_distance_pct", self.trailing_distance_pct)
         self.trailing_activation_pct = _num(("trailing_activation_pct", "trail_activation_pct"), self.trailing_activation_pct)
@@ -761,8 +794,18 @@ class SignalTracker:
             self.risk_per_trade_pct = 1.0
         elif self.risk_per_trade_pct > 10:
             self.risk_per_trade_pct = 10.0
+        if self.threshold_percent <= 0:
+            self.threshold_percent = 3.0
+        if self.min_consecutive_positive_scans < 1:
+            self.min_consecutive_positive_scans = 1
+        if self.trend_lookback_scans < 4:
+            self.trend_lookback_scans = 4
+        if self.scan_interval_seconds < 1:
+            self.scan_interval_seconds = 1
+        if self.cooldown_minutes < 0:
+            self.cooldown_minutes = 0
         if self.pump_threshold_pct <= 0:
-            self.pump_threshold_pct = 5.0
+            self.pump_threshold_pct = self.threshold_percent
         if self.trailing_distance_pct <= 0:
             self.trailing_distance_pct = 1.5
         if getattr(self, "trailing_activation_pct", 0) < 0:
@@ -853,13 +896,77 @@ class SignalTracker:
             ak = self._get_asset_key(item) or item.get("asset_key")
             if not ak:
                 continue
-            p = safe_float(item.get("Price") or item.get("price") or item.get("current_price"))
+            if self.raw_trend_only:
+                p = safe_float(
+                    item.get("Nobitex Ask") or item.get("Ask")
+                    or item.get("Price") or item.get("price")
+                    or item.get("current_price")
+                )
+            else:
+                p = safe_float(item.get("Price") or item.get("price") or item.get("current_price"))
             if p and p > 0:
                 price_lookup[ak] = p
             signal = item.get("Signal") or item.get("signal")
             if signal:
                 signal_lookup[str(ak)] = str(signal)
         return price_lookup, signal_lookup
+
+    def _record_raw_scan_history(self, market_data) -> Dict[str, TrendAssessment]:
+        """Record this scanner cycle and return exit assessments by asset key."""
+        assessments: Dict[str, TrendAssessment] = {}
+        if not self.raw_trend_only:
+            return assessments
+        prices_for_db: Dict[str, float] = {}
+        now = time.time()
+        for row in market_data or []:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("Symbol") or row.get("symbol") or "").strip().upper()
+            asset_key = self._get_asset_key(row) or (f"sym:{symbol}" if symbol else "")
+            price = safe_float(
+                row.get("Nobitex Ask") or row.get("Ask")
+                or row.get("Price") or row.get("price")
+                or row.get("current_price")
+            )
+            if not symbol or not asset_key or price is None or price <= 0:
+                continue
+            history = self._raw_scan_history[symbol]
+            # A row may already carry engine history.  Seed only an empty
+            # local history; never replace newer scanner observations.  The
+            # engine includes the current observation in ``scan_history``;
+            # do not append that same price twice or the artificial flat tick
+            # would erase the positive streak and reject the entry.
+            seeded_current = False
+            if not history and isinstance(row.get("scan_history"), (list, tuple)):
+                seeded: List[float] = []
+                for value in row["scan_history"][-self.trend_lookback_scans:]:
+                    parsed = safe_float(value)
+                    if parsed and parsed > 0:
+                        seeded.append(float(parsed))
+                history.extend(seeded)
+                seeded_current = bool(seeded and abs(seeded[-1] - float(price)) <= max(1e-12, abs(float(price)) * 1e-9))
+            if not seeded_current:
+                history.append(float(price))
+            prices_for_db[symbol] = float(price)
+            assessment = assess_trend(
+                list(history),
+                threshold_percent=self.threshold_percent,
+                min_consecutive_positive_scans=self.min_consecutive_positive_scans,
+                trend_lookback_scans=self.trend_lookback_scans,
+            )
+            self._last_trend_assessments[symbol] = assessment
+            self._last_trend_assessments[str(asset_key)] = assessment
+            assessments[str(asset_key)] = assessment
+        if prices_for_db:
+            self.update_price_history(prices_for_db)
+        return assessments
+
+    def get_scan_history(self, symbol: Optional[str] = None) -> Dict[str, List[float]]:
+        """Expose scanner-owned history for the paper panel and diagnostics."""
+        if symbol:
+            key = str(symbol).strip().upper()
+            return {key: list(self._raw_scan_history.get(key, []))}
+        return {key: list(values) for key, values in self._raw_scan_history.items()}
 
     def paper_half_spread(self) -> float:
         """Half-spread applied to simulated (paper) fills; 0 in real mode."""
@@ -1836,7 +1943,11 @@ class SignalTracker:
             str(rec["side"]).upper(), rec["symbol"],
             self._format_closed_pnl(ev["pnl_pct"], pnl_amount), ev["exit_reason"],
         )
-        cooldown = self.cooldown_after_loss_min if ev["pnl_pct"] <= 0 else self.cooldown_after_win_min
+        cooldown = (
+            self.cooldown_minutes
+            if self.raw_trend_only
+            else (self.cooldown_after_loss_min if ev["pnl_pct"] <= 0 else self.cooldown_after_win_min)
+        )
         self._set_cooldown(cur, rec.get("asset_key") or "", rec["symbol"], cooldown,
                            f"post-exit ({ev['exit_reason']})")
         self._safe_learner_call(
@@ -1849,7 +1960,7 @@ class SignalTracker:
     # OPEN-TRADE MAINTENANCE
     # ══════════════════════════════════════════════════════════════
 
-    def _update_open_trades(self, price_lookup, base_risk, stats):
+    def _update_open_trades(self, price_lookup, base_risk, stats, trend_assessments=None):
         with self._lock:
             try:
                 with self._get_conn() as conn:
@@ -1872,6 +1983,37 @@ class SignalTracker:
                 stop=rec["current_stop_loss"], extreme=rec["extreme_price"],
                 params=params, size=size,
             )
+            # Raw-trend exits are evaluated from the same scanner history as
+            # entries.  A stop/TP hit wins if it happened on this tick; a
+            # confirmed lower-low or price-below-mean closes an otherwise
+            # open position without waiting for a reversal indicator.
+            trend = (trend_assessments or {}).get(rec.get("asset_key"))
+            if (
+                self.raw_trend_only
+                and trend is not None
+                and trend.sufficient_history
+                and trend.trend_break
+                and not ev["should_close"]
+            ):
+                fee_pct = float(params.get("trading_fee_pct", 0.1) or 0.1)
+                half_spread = float(params.get("half_spread_pct", 0.0) or 0.0)
+                exit_price = cur_price * (1.0 - half_spread / 100.0)
+                net_p = self._compute_net_pnl_pct(rec["side"], entry, exit_price, fee_pct)
+                entry_fee = size * entry * fee_pct / 100.0
+                exit_fee = size * exit_price * fee_pct / 100.0
+                gross = (exit_price - entry) * size
+                if str(rec["side"]).lower() == "short":
+                    gross = -gross
+                ev.update({
+                    "should_close": True,
+                    "exit_price": exit_price,
+                    "exit_reason": "Trend Break",
+                    "pnl_pct": round(net_p, 6),
+                    "pnl_pct_net": round(net_p, 6),
+                    "pnl_amount": round(gross - entry_fee - exit_fee, 8),
+                    "fees": entry_fee,
+                    "exit_fee": round(exit_fee, 8),
+                })
             # the trades table already carries a per-trade max_hold_minutes
             # column (always NULL until something writes it) - honour it, else
             # fall back to the tracker-wide setting.
@@ -2430,9 +2572,60 @@ class SignalTracker:
         symbol = str(row.get("Symbol") or row.get("symbol") or row.get("name")
                      or row.get("AssetKey") or row.get("asset_key") or ak or "").strip()
         price = safe_float(row.get("Price") or row.get("price") or row.get("current_price"))
+        if self.raw_trend_only:
+            price = safe_float(
+                row.get("Nobitex Ask") or row.get("Ask")
+                or row.get("Price") or row.get("price")
+                or row.get("current_price")
+            )
         if not price or price <= 0:
             self._log_skip("Skip %s: invalid price", symbol or ak, reason="invalid_price")
             return
+
+        symbol_key = str(row.get("Symbol") or row.get("symbol") or "").strip().upper()
+        if self.raw_trend_only:
+            if symbol_key in set(self.symbol_blacklist):
+                self._log_skip("%s: symbol blacklist", symbol_key, reason="blacklist")
+                return
+            if self.symbol_whitelist and symbol_key not in set(self.symbol_whitelist):
+                self._log_skip("%s: symbol not in whitelist", symbol_key, reason="whitelist")
+                return
+            # The engine writes these booleans into the row.  For direct
+            # paper/test callers, use the tracker's own just-recorded history
+            # rather than trusting a textual BUY label.
+            assessment = self._last_trend_assessments.get(ak)
+            if assessment is None and symbol_key:
+                raw_history = row.get("scan_history")
+                if isinstance(raw_history, (list, tuple)):
+                    history_values = [
+                        float(value) for value in raw_history
+                        if safe_float(value) is not None and float(value) > 0
+                    ]
+                    if not history_values or abs(history_values[-1] - float(price)) > max(1e-12, abs(float(price)) * 1e-9):
+                        history_values.append(float(price))
+                    assessment = assess_trend(
+                        history_values,
+                        threshold_percent=self.threshold_percent,
+                        min_consecutive_positive_scans=self.min_consecutive_positive_scans,
+                        trend_lookback_scans=self.trend_lookback_scans,
+                    )
+            if assessment is None or not assessment.entry_allowed:
+                self._log_skip(
+                    "%s: raw trend not confirmed (%s)",
+                    symbol,
+                    ",".join(assessment.reason_codes) if assessment else "missing_history",
+                    reason="trend_not_confirmed",
+                )
+                return
+            if not bool(row.get("TrendConfirmed", row.get("trend_confirmed", False))):
+                # A row produced by the engine is required to carry the
+                # auditable confirmation marker; this prevents a caller from
+                # bypassing structure checks with Signal='Buy Signal'.
+                self._log_skip("%s: missing engine trend confirmation", symbol, reason="trend_not_confirmed")
+                return
+            if bool(row.get("TrendBreak", row.get("trend_break", False))):
+                self._log_skip("%s: trend is broken", symbol, reason="trend_break")
+                return
 
         volume = safe_float(row.get("24h Volume") or row.get("Volume") or row.get("volume")
                             or row.get("quote_volume") or row.get("volume_24h"))
@@ -2467,7 +2660,7 @@ class SignalTracker:
             pump_pct = safe_float(row.get("1h Change (%)")) or 0.0
         # Every normal BUY entry is pump-gated. Eagle is the only intentional
         # exception because its dedicated detector applies stronger conditions.
-        if not is_eagle and pump_pct < self.pump_threshold_pct:
+        if not self.raw_trend_only and not is_eagle and pump_pct < self.pump_threshold_pct:
             self._log_skip("%s: pump %.2f%% < threshold %.2f%%",
                            symbol, pump_pct, self.pump_threshold_pct,
                            reason="below_pump_threshold")
@@ -2547,7 +2740,7 @@ class SignalTracker:
                 logger.warning("Symbol support check failed for %s: %s", symbol, e)
                 return
 
-        if self.use_risk_filter and not self.ignore_signal_filters:
+        if self.use_risk_filter and not self.ignore_signal_filters and not self.raw_trend_only:
             if not RISK_ENGINE_AVAILABLE:
                 logger.error("Risk filter enabled but engine unavailable. Skipping.")
                 return
@@ -2567,7 +2760,7 @@ class SignalTracker:
                 logger.error("Risk assessment failed for %s: %s", symbol, e, exc_info=True)
                 return
 
-        if self.ml_enabled and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
+        if self.ml_enabled and not self.raw_trend_only and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
             features = trade_features_from_signal(row)
             probability = self.learner.predict_probability(features)
             row["MLProbability"] = round(probability * 100.0, 2)
@@ -2587,9 +2780,13 @@ class SignalTracker:
             price_lookup=price_lookup,
         )
         if opened:
-            cooldown_min = max(1, int(round(self.entry_cooldown_seconds / 60.0))) if self.entry_cooldown_seconds else 0
+            cooldown_min = (
+                max(0, int(self.cooldown_minutes))
+                if self.raw_trend_only
+                else (max(1, int(round(self.entry_cooldown_seconds / 60.0))) if self.entry_cooldown_seconds else 0)
+            )
             if cooldown_min > 0:
-                self._set_cooldown(cur, ak, symbol, cooldown_min, "post-pump-entry")
+                self._set_cooldown(cur, ak, symbol, cooldown_min, "post-raw-trend-entry" if self.raw_trend_only else "post-pump-entry")
             open_asset_keys.add(ak)
         else:
             logger.debug("No position opened for %s — no cooldown.", symbol)
@@ -2613,6 +2810,7 @@ class SignalTracker:
             return stats
 
         price_lookup, _signal_lookup = self._build_lookups(market_data)
+        trend_assessments = self._record_raw_scan_history(market_data)
         base_risk = self._get_risk_settings()
         managed = self.has_managed_positions() if (self.mode == "real" and self.executor) else False
 
@@ -2621,7 +2819,7 @@ class SignalTracker:
             stats["closed"] += rec.get("closed_phantom", 0)
             stats["resized"] += rec.get("resized", 0)
 
-        self._update_open_trades(price_lookup, base_risk, stats)
+        self._update_open_trades(price_lookup, base_risk, stats, trend_assessments)
         self._reserved_asset_keys = set()
 
         candidates_count = 0
@@ -3109,7 +3307,7 @@ class SignalTracker:
                                     else self.cooldown_after_win_min)
                         self._set_cooldown(cur, rec.get("asset_key") or "", rec["symbol"],
                                            cooldown, f"post-exit ({reason})")
-                        if self.ml_enabled and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
+                        if self.ml_enabled and not self.raw_trend_only and OnlineTradeLearner and isinstance(self.learner, OnlineTradeLearner):
                             try:
                                 entry_features = trade_features_from_signal(
                                     json.loads(rec.get("entry_indicators") or "{}")

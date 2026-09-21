@@ -54,6 +54,7 @@ import time
 from collections import defaultdict, deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
+from analysis.raw_trend import assess_trend
 from core.utils import safe_float
 
 logger = logging.getLogger(__name__)
@@ -753,6 +754,135 @@ class RegimeDetector:
             f"pending {raw} ({self._pending_count}/{self.confirm_scans}, "
             f"score={score:.1f})"
         )
+        return self.current_regime
+
+
+# ────────────────────────────────────────────────────────────
+# Raw scan regime detector
+# ────────────────────────────────────────────────────────────
+
+class RawScanRegimeDetector:
+    """Regime detector using only the prices seen in consecutive scans.
+
+    It intentionally ignores the legacy detector's optional tracker statistics,
+    volume trend and technical feature vocabulary.  The result is a market
+    context guard for the raw trend strategy, not a prediction of the next
+    move.  A candidate still has to pass ``NobitexMomentumEngine`` itself.
+    """
+
+    def __init__(
+        self,
+        *,
+        threshold_percent: float = 3.0,
+        min_consecutive_positive_scans: int = 3,
+        trend_lookback_scans: int = 6,
+        history_len: int = 120,
+        confirm_scans: int = 2,
+    ) -> None:
+        self.threshold_percent = max(0.0, float(threshold_percent))
+        self.min_consecutive_positive_scans = max(1, int(min_consecutive_positive_scans))
+        self.trend_lookback_scans = max(4, int(trend_lookback_scans))
+        self.history_len = max(self.trend_lookback_scans, int(history_len))
+        self.confirm_scans = max(1, int(confirm_scans))
+        self.current_regime = BALANCED
+        self.last_score = 50.0
+        self.last_reason = "init"
+        self._pending_regime: Optional[str] = None
+        self._pending_count = 0
+        self._history: Dict[str, Deque[float]] = defaultdict(
+            lambda: deque(maxlen=self.history_len)
+        )
+
+    def _record(self, rows: List[Dict[str, Any]]) -> None:
+        for row in rows or []:
+            symbol = str(row.get("Symbol") or "").upper().strip()
+            price = (
+                safe_float(row.get("Nobitex Ask"))
+                or safe_float(row.get("Ask"))
+                or safe_float(row.get("Price"))
+                or 0.0
+            )
+            if symbol and price > 0:
+                self._history[symbol].append(price)
+
+    def score(self, local_rows: List[Dict[str, Any]], tracker: Any = None, now: Optional[float] = None) -> Dict[str, Any]:
+        rows = [row for row in (local_rows or []) if isinstance(row, dict)]
+        self._record(rows)
+        assessments = {}
+        for symbol, prices in self._history.items():
+            assessments[symbol] = assess_trend(
+                prices,
+                threshold_percent=self.threshold_percent,
+                min_consecutive_positive_scans=self.min_consecutive_positive_scans,
+                trend_lookback_scans=self.trend_lookback_scans,
+            )
+        usable = [a for a in assessments.values() if a.sufficient_history]
+        confirmed = [a for a in usable if a.entry_allowed]
+        negative = [a for a in usable if a.cumulative_change_pct <= 0 or a.trend_break]
+        breadth = (len(confirmed) / len(usable)) if usable else 0.0
+        negative_share = (len(negative) / len(usable)) if usable else 0.0
+        # BTC context is also derived from scanner-owned observations; the
+        # exchange's 24-hour field is intentionally not used as a second
+        # baseline for the raw strategy.
+        btc_assessment = assessments.get("BTC")
+        btc_change = (
+            float(btc_assessment.cumulative_change_pct)
+            if btc_assessment is not None and btc_assessment.sufficient_history
+            else 0.0
+        )
+        score = max(0.0, min(100.0, 50.0 + breadth * 50.0 - negative_share * 45.0 + max(-10.0, min(10.0, btc_change * 2.0))))
+        if btc_change <= -4.0 or negative_share >= 0.75:
+            score = min(score, 20.0)
+        self.last_score = score
+        return {
+            "score": score,
+            "breadth": breadth,
+            "breadth_24h": breadth,
+            "breadth_short": breadth,
+            "btc_24h": btc_change,
+            "btc_short": 0.0,
+            "confirmed_symbols": [symbol for symbol, assessment in assessments.items() if assessment.entry_allowed],
+            "trend_break_symbols": [symbol for symbol, assessment in assessments.items() if assessment.trend_break],
+            "trade_count": 0,
+            "drawdown_pct": 0.0,
+            "raw_scan_only": True,
+        }
+
+    def _raw_regime(self, info: Dict[str, Any]) -> str:
+        score = float(info.get("score", 50.0))
+        confirmed = len(info.get("confirmed_symbols", []) or [])
+        if score <= 20.0:
+            return CRISIS
+        if score <= 38.0 or (confirmed == 0 and score < 50.0):
+            return CONSERVATIVE
+        if score >= 72.0 and confirmed >= 2:
+            return AGGRESSIVE
+        return BALANCED
+
+    def decide(self, info: Dict[str, Any]) -> str:
+        raw = self._raw_regime(info)
+        if raw == CRISIS or self.current_regime == CRISIS:
+            self.current_regime = raw
+            self._pending_regime = None
+            self._pending_count = 0
+            self.last_reason = f"raw direct {raw}"
+            return raw
+        if raw == self.current_regime:
+            self._pending_regime = None
+            self._pending_count = 0
+            self.last_reason = f"raw hold {raw}"
+            return raw
+        if self._pending_regime == raw:
+            self._pending_count += 1
+        else:
+            self._pending_regime, self._pending_count = raw, 1
+        if self._pending_count >= self.confirm_scans:
+            self.current_regime = raw
+            self._pending_regime = None
+            self._pending_count = 0
+            self.last_reason = f"raw -> {raw}"
+        else:
+            self.last_reason = f"raw pending {raw} ({self._pending_count}/{self.confirm_scans})"
         return self.current_regime
 
 

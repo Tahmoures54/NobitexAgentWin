@@ -3,69 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CryptoScanner — Nobitex IRT User Guide</title>
+<title>CryptoScanner 6.1.0 — Nobitex IRT User Guide</title>
 <style>
 body{font-family:Segoe UI,Arial,sans-serif;max-width:1000px;margin:40px auto;padding:0 20px;line-height:1.6;color:#203040}
 h1,h2{color:#087f8c} code,pre{background:#f3f6f8;padding:3px 6px;border-radius:4px} pre{padding:14px;overflow:auto}
 .card{border:1px solid #dbe5e8;border-radius:12px;padding:18px;margin:18px 0}
 .warn{background:#fff7df;border-left:5px solid #e3ad18;padding:14px}
+.good{background:#e9f8ef;border-left:5px solid #2f9e62;padding:14px}
+table{border-collapse:collapse;width:100%}th,td{border:1px solid #dbe5e8;padding:8px;text-align:left}th{background:#f3f6f8}
 </style>
 </head>
 <body>
-<h1>CryptoScanner — Nobitex / IRT</h1>
-<p>This release is dedicated to spot trading on Nobitex in the IRT market.</p>
+<h1>CryptoScanner 6.1.0 — Nobitex / IRT</h1>
+<p>This release is a Nobitex spot scanner and paper-first trading assistant for the IRT (Rial-compatible) market.</p>
 
-<div class="warn"><strong>Risk notice:</strong> no trading system guarantees profit. Use paper mode first and keep live exposure small.</div>
+<div class="warn"><strong>Risk notice:</strong> no trading system guarantees profit. Profitability must be measured from paper results after fees, spread, and slippage. Never treat a signal count as proof of an edge.</div>
 
 <div class="card">
 <h2>1. Install</h2>
 <pre>py -m venv .venv
-.venv\Scriptsctivate
+.venv\Scripts\activate
 pip install -r requirements.txt
 py main.py</pre>
+<p>Before a live experiment, run the read-only Nobitex preflight:</p>
+<pre>python tools\nobitex_preflight.py</pre>
 </div>
 
 <div class="card">
-<h2>2. Nobitex credentials</h2>
-<p>Create a Nobitex API key with <strong>READ</strong> and <strong>TRADE</strong> permissions. Do not enable withdrawals.</p>
-<p>Set <code>NOBITEX_API_KEY</code> and <code>NOBITEX_PRIVATE_KEY</code>, or enter them through Settings.</p>
+<h2>2. Credentials and IRT</h2>
+<p>Create a Nobitex API key with <strong>READ</strong> and <strong>TRADE</strong> permissions. Do not enable withdrawals. Use the encrypted local credential store or the supported environment/configuration flow; never hardcode keys.</p>
+<p>Nobitex IRT order values remain in Rial-compatible IRT units. Toman conversion is display-only. <strong>Do not divide an order amount or price by ten.</strong></p>
 </div>
 
 <div class="card">
-<h2>3. How entries are detected</h2>
+<h2>3. The real-movement entry rule</h2>
+<p>Strict raw-scan mode does not use RSI, MACD, EMA, Bollinger Bands, Fibonacci, AI, machine learning, or price forecasting. It uses the prices observed by this scanner and a simple average of previous scans.</p>
+<ol>
+<li>The scanner records one valid price per symbol on every completed cycle.</li>
+<li>It waits until the configured lookback is available (6 scans by default).</li>
+<li>The current move must be strictly greater than the threshold (3% by default).</li>
+<li>The required positive streak must be present (3 consecutive positive scans by default).</li>
+<li>Recent raw prices must show higher highs and higher lows.</li>
+<li>The current price must be above the mean of previous scans, and that mean must be rising.</li>
+</ol>
+<p>Negative, flat, weak, below-threshold, below-average, invalid, or unconfirmed symbols are rejected. A move exactly equal to the threshold is rejected.</p>
+<p>Spread, quote-volume, visible depth, whitelist/blacklist, cooldown, and account-risk checks can reject a candidate for execution safety; they cannot create a trend entry.</p>
+</div>
+
+<div class="card">
+<h2>4. Default settings</h2>
+<table>
+<tr><th>Setting</th><th>Default</th></tr>
+<tr><td>Execution mode</td><td><strong>Paper</strong></td></tr>
+<tr><td>Threshold / positive streak / lookback</td><td>3% / 3 scans / 6 scans</td></tr>
+<tr><td>Stop loss</td><td>3%</td></tr>
+<tr><td>Trailing stop</td><td>Enabled, 1% distance; optional</td></tr>
+<tr><td>Risk per trade / max positions</td><td>0.5% / 2</td></tr>
+<tr><td>Cooldown / scan interval</td><td>30 minutes / 10 seconds</td></tr>
+<tr><td>Whitelist / blacklist</td><td>Empty / empty</td></tr>
+</table>
+<p>Canonical names are <code>threshold_percent</code>, <code>min_consecutive_positive_scans</code>, <code>trend_lookback_scans</code>, <code>stop_loss_percent</code>, <code>trailing_stop_percent</code>, <code>risk_per_trade_percent</code>, <code>cooldown_minutes</code>, and <code>scan_interval_seconds</code>. The GUI accepts comma-separated symbols. History is persisted in <code>data/scan_history.json</code>.</p>
+</div>
+
+<div class="card">
+<h2>5. Exits and position protection</h2>
 <ul>
-<li>The application scans Nobitex IRT market statistics.</li>
-<li>It records the local price path between scans.</li>
-<li>It rejects excessive spread and chase.</li>
-<li>It checks volume and, for shortlisted entries, executable ask depth.</li>
-<li>It uses a short momentum confirmation rather than relying on a single green candle.</li>
-<li>During a broad BTC decline, normal alt entries are blocked; only exceptional local movers can pass the Eagle exception.</li>
+<li><strong>Stop loss:</strong> closes a long when the observed price reaches the configured stop.</li>
+<li><strong>Trend break:</strong> closes when the shared raw assessment sees a broken lower structure or price below the previous-scan mean.</li>
+<li><strong>Trailing stop:</strong> optional; follows a new observed high after activation and never weakens below entry.</li>
+<li><strong>Risk limits:</strong> maximum positions, per-position and total exposure, minimum order value, cooldown, drawdown halt, and the existing emergency-halt path remain active.</li>
 </ul>
 </div>
 
 <div class="card">
-<h2>4. Position sizing</h2>
-<p>The default mode is <strong>risk_percent</strong>. The system calculates a position from account equity and stop distance, then applies single-position and total-exposure caps.</p>
-<p>API order values remain in the Nobitex Rial-compatible unit. Toman conversion is for display only.</p>
-</div>
-
-<div class="card">
-<h2>5. Live trading checklist</h2>
+<h2>6. Paper first</h2>
+<div class="good"><strong>Recommended sequence:</strong> Paper → measure after costs → review → Live only with explicit activation.</div>
 <ol>
-<li>Confirm Nobitex balance.</li>
-<li>Confirm IRT market.</li>
-<li>Confirm risk-per-trade and exposure caps.</li>
-<li>Confirm the key has no withdrawal permission.</li>
-<li>Run paper mode first.</li>
-<li>When going live, verify the first fill and protective stop manually.</li>
+<li>Leave <strong>Execution mode = Paper</strong>.</li>
+<li>Let the scanner accumulate the six-scan history and run a meaningful sample.</li>
+<li>Review net P&amp;L, fees, spread assumptions, win rate, expectancy, maximum drawdown, and exit reasons.</li>
+<li>Do not tune from a single trade or a short sample.</li>
+<li>Only after review, switch to <strong>Live Nobitex</strong> in Bot Settings.</li>
+<li>Press <strong>Start</strong> on the Real tab. The connected account alone never arms a Nobitex BUY.</li>
+<li>Use a small allocation and verify the first fill and protective stop.</li>
 </ol>
+<p>Paper and live entries are mutually exclusive. Pausing new live entries still leaves existing live positions eligible for their protective exits.</p>
 </div>
 
 <div class="card">
-<h2>6. Troubleshooting</h2>
-<p><strong>Authentication error:</strong> verify the public key, private key, API permissions and PC clock.</p>
-<p><strong>Rate limit:</strong> reduce scan frequency and let the built-in retry/backoff complete.</p>
-<p><strong>No entries:</strong> this can be normal. The strategy deliberately rejects weak movement, wide spreads, insufficient volume, excessive chase and risk-limit violations.</p>
+<h2>7. Measuring results</h2>
+<p>A paper report should include the test dates, scan count, candidates by rejection reason, completed trades, net P&amp;L after fees/spread, win rate, average win/loss, expectancy, maximum drawdown, exposure, and counts of stop-loss, trend-break, and trailing exits. The application can be safe and disciplined while still being unprofitable; report the observed result honestly.</p>
 </div>
+
+<div class="card">
+<h2>8. Troubleshooting</h2>
+<p><strong>No entries:</strong> this is expected until enough history exists or when a symbol fails threshold, positive streak, structure, mean, whitelist, blacklist, liquidity, or risk checks.</p>
+<p><strong>History reset:</strong> verify the configured <code>scan_history_file</code> and do not delete <code>data/scan_history.json</code> between paper runs unless a fresh experiment is intended.</p>
+<p><strong>Paper mode rejects a live order:</strong> switch to Live and press Start deliberately. This guard is intentional.</p>
+<p><strong>Authentication or balance error:</strong> verify the key permissions, PC clock, Nobitex market, and account balance. A failed balance read is never treated as zero.</p>
+</div>
+
+<p>See <a href="README.md">README.md</a>, <a href="PRODUCTION.md">PRODUCTION.md</a>, <a href="SECURITY.md">SECURITY.md</a>, and <a href="NOBITEX_TEST_READINESS.md">NOBITEX_TEST_READINESS.md</a> for operational details.</p>
 </body>
 </html>

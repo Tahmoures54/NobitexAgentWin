@@ -229,6 +229,68 @@ REFRESH_INTERVAL_MS: int = CACHE_EXPIRY_MIN * 60 * 1000
 
 DEFAULT_ADV_LIMIT: int = 50
 
+# Pure raw-scan trend defaults.  These are duplicated in BotConfig only so
+# the GUI/global settings layer has a stable, dependency-free source of
+# labels and validation; the trading loop reads the persisted BotConfig.
+DEFAULT_THRESHOLD_PERCENT: float = 3.0
+DEFAULT_MIN_CONSECUTIVE_POSITIVE_SCANS: int = 3
+DEFAULT_TREND_LOOKBACK_SCANS: int = 6
+DEFAULT_STOP_LOSS_PERCENT: float = 3.0
+DEFAULT_TRAILING_STOP_PERCENT: float = 1.0
+DEFAULT_MAX_OPEN_POSITIONS: int = 2
+DEFAULT_RISK_PER_TRADE_PERCENT: float = 0.5
+DEFAULT_COOLDOWN_MINUTES: int = 30
+DEFAULT_SCAN_INTERVAL_SECONDS: int = 10
+
+
+def validate_raw_trend_settings(
+    *,
+    threshold_percent: float = DEFAULT_THRESHOLD_PERCENT,
+    min_consecutive_positive_scans: int = DEFAULT_MIN_CONSECUTIVE_POSITIVE_SCANS,
+    trend_lookback_scans: int = DEFAULT_TREND_LOOKBACK_SCANS,
+    stop_loss_percent: float = DEFAULT_STOP_LOSS_PERCENT,
+    trailing_stop_percent: float = DEFAULT_TRAILING_STOP_PERCENT,
+    max_open_positions: int = DEFAULT_MAX_OPEN_POSITIONS,
+    risk_per_trade_percent: float = DEFAULT_RISK_PER_TRADE_PERCENT,
+    cooldown_minutes: int = DEFAULT_COOLDOWN_MINUTES,
+    scan_interval_seconds: int = DEFAULT_SCAN_INTERVAL_SECONDS,
+) -> List[str]:
+    """Validate the user-facing raw price-action settings."""
+    issues: List[str] = []
+    try:
+        if float(threshold_percent) <= 0:
+            issues.append("threshold_percent must be > 0")
+    except (TypeError, ValueError):
+        issues.append("threshold_percent must be numeric")
+    for name, value, minimum in (
+        ("min_consecutive_positive_scans", min_consecutive_positive_scans, 1),
+        ("trend_lookback_scans", trend_lookback_scans, 4),
+        ("max_open_positions", max_open_positions, 1),
+        ("cooldown_minutes", cooldown_minutes, 0),
+        ("scan_interval_seconds", scan_interval_seconds, 1),
+    ):
+        try:
+            if int(value) < minimum:
+                issues.append(f"{name} must be >= {minimum}")
+        except (TypeError, ValueError):
+            issues.append(f"{name} must be an integer")
+    for name, value in (
+        ("stop_loss_percent", stop_loss_percent),
+        ("risk_per_trade_percent", risk_per_trade_percent),
+    ):
+        try:
+            if not 0 < float(value) <= 100:
+                issues.append(f"{name} must be in (0, 100]")
+        except (TypeError, ValueError):
+            issues.append(f"{name} must be numeric")
+    try:
+        if float(trailing_stop_percent) < 0:
+            issues.append("trailing_stop_percent must be >= 0")
+    except (TypeError, ValueError):
+        issues.append("trailing_stop_percent must be numeric")
+    return issues
+
+
 RISK_LEVELS: Dict[str, str] = {
     "Low":     "#d4edda",
     "Medium":  "#fff3cd",
