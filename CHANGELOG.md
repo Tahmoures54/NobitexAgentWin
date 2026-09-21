@@ -1,3 +1,31 @@
+## v6.1.1 — Threshold-only raw-scan entry
+
+The 6.1 Nobitex IRT path no longer ANDs every structure flag into the
+entry decision.
+
+### Entry
+- Hard gate is sufficient scanner history **and** a cumulative move
+  strictly above the user-configured `threshold_percent`.
+- Consecutive positive scans, higher highs / higher lows, price vs the
+  previous-scan mean, and a rising previous mean remain in the
+  assessment, but they only add a small ranking bonus. They never veto
+  a threshold-qualified long.
+- Negative, flat, below-threshold, equal-to-threshold, and
+  insufficient-history symbols still reject.
+
+### Exits (unchanged in purpose)
+- Protective stop-loss is still attached to every fill.
+- Trailing stop still ratchets with a new observed high and never
+  moves below the entry price.
+- Trend-break remains an **open-trade exit** (price below the previous
+  mean or a lower low), not an entry veto. Stop / trailing still win
+  if they fire on the same tick.
+
+### Tests
+- `tests/test_raw_trend_strategy.py` covers the threshold gate,
+  incomplete-structure entry, ranking tilt, rejections, stop-loss,
+  trailing ratchet, and trend-break exits.
+
 ## v7.0.0 — L2 order-flow microstructure gate
 
 Entry-side confirmation only. The v6.9.1 profitability guards (cost guard, honest

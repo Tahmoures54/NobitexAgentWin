@@ -9,21 +9,17 @@ CryptoScanner is a Windows-friendly spot scanner and trading assistant for **Nob
 The strict Nobitex trend path uses only:
 
 - the price observed on each completed scanner cycle;
-- the scanner-owned per-symbol scan history;
-- a configured positive scan streak;
-- higher highs and higher lows in the recent raw scan window; and
-- a **simple average of previous scans** as the baseline.
+- the scanner-owned per-symbol scan history; and
+- a **simple average of previous scans** as a soft quality baseline.
 
-A long entry is allowed only when all of the following are true:
+A long entry is allowed when both of the following are true:
 
-1. enough valid scans exist for the configured lookback;
-2. the current observed move is **strictly above** `threshold_percent`;
-3. the required number of consecutive scan-to-scan moves is positive;
-4. recent raw prices contain higher highs and higher lows;
-5. the current price is above the mean of the previous scans; and
-6. that previous-scan mean is rising.
+1. enough valid scans exist for the configured lookback; and
+2. the current observed move is **strictly above** the user-configured `threshold_percent`.
 
-Negative, flat, weak, below-threshold, below-average, structurally incomplete, or unconfirmed symbols remain non-tradable. A move exactly equal to the threshold is rejected.
+Any symbol that grew more than that threshold is eligible. Consecutive positive scans, higher highs / higher lows, price-above-mean and a rising previous mean still participate, but only as a **small ranking bonus** (they never veto a threshold-qualified long). Negative, flat, below-threshold, or incomplete-history symbols remain non-tradable. A move exactly equal to the threshold is rejected.
+
+Every fill is opened with a protective **stop loss**. When trailing is enabled the stop ratchets with a new observed high and never moves below the entry price.
 
 The strategy does **not** add RSI, MACD, EMA, Bollinger Bands, Fibonacci, another technical indicator, price prediction, AI, or machine learning. The only trend baseline is the simple mean of prior scan prices. Existing spread, quote-volume, order-book-depth, and account-risk checks may still reject an otherwise confirmed candidate as an execution-safety measure; they never create a trend signal.
 
@@ -131,7 +127,7 @@ Run the full suite from the repository root:
 python -m pytest -q
 ```
 
-The raw-trend tests cover a confirmed entry, invalid/negative/below-threshold/unconfirmed rejection, stop-loss exit, and trend-break exit. Static checks should also include Python compilation/import checks before a release.
+The raw-trend tests cover a threshold-qualified entry (including incomplete structure), ranking tilt between equal-move symbols, invalid/negative/below-threshold/insufficient-history rejection, stop-loss exit, trailing-stop ratchet, and trend-break exit. Static checks should also include Python compilation/import checks before a release.
 
 ## Measuring results
 

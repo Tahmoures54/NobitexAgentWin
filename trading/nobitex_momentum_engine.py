@@ -1,10 +1,12 @@
 """Nobitex IRT raw-scan trend engine.
 
 The engine is an entry filter, not a predictor.  In strict/raw mode every BUY
-candidate is backed by the same scanner-owned price history rules used by
-``analysis.raw_trend``: threshold, positive streak, higher highs/lows, price
-above the previous-scan mean and a rising previous mean.  No technical
-indicator, forecast or model is consulted.
+candidate is backed by the same scanner-owned price history used by
+``analysis.raw_trend``: a move strictly above the user threshold is the
+entry gate.  Streak, higher highs/lows and previous-mean flags still
+participate as a small ranking bonus.  Protective stop-loss and trailing
+stop percentages are attached to every candidate.  No technical indicator,
+forecast or model is consulted.
 
 The small legacy path is retained for old callers that instantiate the engine
 with only the v6 ``min_observed_move_pct`` arguments.  The shipped BotConfig
@@ -321,7 +323,9 @@ class NobitexMomentumEngine:
         eagle: bool = False,
     ) -> Dict[str, Any]:
         first = self._first_seen.setdefault(symbol, now)
-        score = max(0.0, min(100.0, assessment.cumulative_change_pct * 10.0))
+        score = float(getattr(assessment, "ranking_score", 0.0) or 0.0)
+        if score <= 0.0:
+            score = max(0.0, min(100.0, assessment.cumulative_change_pct * 10.0))
         day_high = safe_float(source.get("Day High")) or 0.0
         day_low = safe_float(source.get("Day Low")) or 0.0
         day_range_pct = (
@@ -359,8 +363,8 @@ class NobitexMomentumEngine:
                 "ConsecutivePositiveScans": assessment.positive_streak,
                 "TrendConfirmed": True,
                 "trend_confirmed": True,
-                "TrendBreak": False,
-                "trend_break": False,
+                "TrendBreak": bool(assessment.trend_break),
+                "trend_break": bool(assessment.trend_break),
                 "HigherHighs": assessment.higher_highs,
                 "HigherLows": assessment.higher_lows,
                 "CurrentAbovePreviousMean": assessment.current_above_previous_mean,
@@ -370,8 +374,12 @@ class NobitexMomentumEngine:
                 "threshold_percent": self.threshold_percent,
                 "min_consecutive_positive_scans": self.min_consecutive_positive_scans,
                 "trend_lookback_scans": self.trend_lookback_scans,
-                "StopLossPrice": price * (1.0 - self.stop_loss_percent / 100.0),
+                "StopLossPrice": price * (1.0 - self.stop_loss_percent / 100.0) if self.stop_loss_percent > 0 else 0.0,
+                "stop_loss_percent": self.stop_loss_percent,
                 "TrailingStopPercent": self.trailing_stop_percent,
+                "trailing_stop_percent": self.trailing_stop_percent,
+                "StructureScore": float(getattr(assessment, "structure_score", 0.0) or 0.0),
+                "structure_score": float(getattr(assessment, "structure_score", 0.0) or 0.0),
                 "EagleException": eagle,
                 "DataSource": "Nobitex",
                 "ExecutionVenue": "Nobitex",

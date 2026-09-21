@@ -177,7 +177,10 @@ def real_movement_strategy(
     inspect RSI/MACD/EMA/Bollinger/volume-derived features and it never
     predicts a future price.  Rows without enough scan history are neutral.
     ``threshold_percent`` is deliberately strict (``>``), so a move exactly
-    on the user's threshold is not an entry.
+    on the user's threshold is not an entry.  Secondary structure flags
+    only nudge confidence/ranking; they never veto a threshold-qualified
+    long.  Stop-loss and trailing-stop percentages are copied onto the
+    signal so the tracker can arm protection on fill.
     """
     history = _scan_history_from_row(row)
     threshold = float(
@@ -217,13 +220,23 @@ def real_movement_strategy(
     result["TrendBreak"] = bool(result.get("trend_break", False))
     result["trend_break"] = bool(result.get("trend_break", False))
     result["price"] = result.get("current_price")
-    result["score"] = round(max(0.0, min(100.0, result["cumulative_change_pct"])), 4)
+    ranked = float(result.get("ranking_score") or 0.0)
+    if ranked <= 0.0 and result.get("entry_allowed"):
+        ranked = max(0.0, min(100.0, float(result.get("cumulative_change_pct") or 0.0) * 10.0))
+    result["score"] = round(ranked, 4)
     result["Score"] = result["score"]
-    result["confidence"] = 100.0 if result["entry_allowed"] else 0.0
+    structure = float(result.get("structure_score") or 0.0)
+    result["confidence"] = (
+        round(70.0 + 30.0 * max(0.0, min(1.0, structure)), 2)
+        if result["entry_allowed"] else 0.0
+    )
     result["quality"] = 1.0 if result["sufficient_history"] else 0.0
     result["risk"] = "Low" if result["entry_allowed"] else "Unknown"
     result["risk_level"] = result["risk"]
     result["long_score"] = result["score"] if result["entry_allowed"] else 0.0
+    result["StopLossPrice"] = result.get("StopLossPrice") or 0.0
+    result["stop_loss_percent"] = stop
+    result["trailing_stop_percent"] = trail
     return result
 
 

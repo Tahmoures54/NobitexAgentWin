@@ -6,16 +6,15 @@ observation about the prices that have already arrived in consecutive scans.
 
 The live Nobitex path uses :func:`assess_trend` as its entry contract:
 
-* the current price must be above the reference price by the configured
-  threshold;
-* the latest scans must contain a positive consecutive streak;
-* the recent structure must contain higher highs and higher lows;
-* the current price must be above the mean of previous scans and that mean
-  must be rising.
+* **hard gate:** the observed move from the lookback baseline must be
+  strictly above the user-configured ``threshold_percent``;
+* **soft quality:** streak, higher-highs/lows, price-vs-mean and a rising
+  previous mean still participate, but only as a small ranking bonus;
+* **exits:** the same assessment still reports a trend-break, while the
+  tracker applies the configured stop-loss and trailing stop.
 
-The same assessment is also used for trend-break exits.  Keeping these rules
-in one module prevents the scanner, paper tracker and live tracker from
-silently using different definitions of "trend".
+Keeping these rules in one module prevents the scanner, paper tracker and
+live tracker from silently using different definitions of "trend".
 """
 from __future__ import annotations
 
@@ -33,6 +32,10 @@ _PRICE_KEYS: Tuple[str, ...] = (
     "ask",
     "Ask",
 )
+
+# Soft structure may add at most this many ranking points.  A 3% move already
+# scores 30, so a perfect structure bonus of 5 never overturns a larger move.
+STRUCTURE_SCORE_WEIGHT = 5.0
 
 
 def _finite_positive(value: Any) -> Optional[float]:
@@ -134,6 +137,48 @@ def _positive_streak(values: Sequence[float]) -> int:
     return streak
 
 
+def _structure_score(
+    *,
+    streak: int,
+    min_streak: int,
+    higher_highs: bool,
+    higher_lows: bool,
+    above_mean: bool,
+    mean_rising: bool,
+) -> float:
+    """Return 0..1 quality from the secondary structure flags.
+
+    None of these flags is an entry veto.  They only tilt ranking among
+    symbols that already cleared the user threshold.
+    """
+    flags = (
+        streak >= min_streak,
+        higher_highs,
+        higher_lows,
+        above_mean,
+        mean_rising,
+    )
+    return sum(1.0 for flag in flags if flag) / float(len(flags))
+
+
+def compute_ranking_score(cumulative_change_pct: float, structure_score: float) -> float:
+    """Dominant move score plus a small structure bonus, clamped to 0..100."""
+    try:
+        move = float(cumulative_change_pct)
+    except (TypeError, ValueError):
+        move = 0.0
+    try:
+        quality = float(structure_score)
+    except (TypeError, ValueError):
+        quality = 0.0
+    if not math.isfinite(move):
+        move = 0.0
+    if not math.isfinite(quality):
+        quality = 0.0
+    quality = min(1.0, max(0.0, quality))
+    return max(0.0, min(100.0, move * 10.0 + quality * STRUCTURE_SCORE_WEIGHT))
+
+
 @dataclass(frozen=True)
 class TrendAssessment:
     """Auditable result of the raw scan rules."""
@@ -152,14 +197,19 @@ class TrendAssessment:
     previous_mean_rising: bool = False
     higher_highs: bool = False
     higher_lows: bool = False
+    structure_score: float = 0.0
+    ranking_score: float = 0.0
     trend_confirmed: bool = False
     trend_break: bool = False
     sufficient_history: bool = False
     reason_codes: Tuple[str, ...] = ()
+    soft_reason_codes: Tuple[str, ...] = ()
 
     @property
     def entry_allowed(self) -> bool:
-        return self.trend_confirmed and not self.trend_break
+        # Soft structure never vetoes a threshold-qualified long.  Trend-break
+        # is an exit for an already-open trade, not an entry filter.
+        return self.trend_confirmed
 
     @property
     def is_negative(self) -> bool:
@@ -168,6 +218,7 @@ class TrendAssessment:
     def to_dict(self) -> dict:
         result = asdict(self)
         result["reason_codes"] = list(self.reason_codes)
+        result["soft_reason_codes"] = list(self.soft_reason_codes)
         result["entry_allowed"] = self.entry_allowed
         result["is_negative"] = self.is_negative
         return result
@@ -187,6 +238,10 @@ def assess_trend(
     minimum of ``trend_lookback_scans`` valid observations is required; using
     an older first observation when the requested window is unavailable would
     make a new symbol appear confirmed too early, so the function fails closed.
+
+    Entry is allowed when the cumulative move is strictly above
+    ``threshold_percent``.  Streak / higher-highs / higher-lows / mean flags
+    only change ``structure_score`` and therefore ranking, not the gate.
     """
     prices = clean_prices(history)
     try:
@@ -234,27 +289,38 @@ def assess_trend(
     above_mean = current > previous_mean
     mean_rising = recent_mean > early_mean
 
-    reasons: List[str] = []
+    hard_reasons: List[str] = []
+    soft_reasons: List[str] = []
     if cumulative <= 0:
-        reasons.append("negative_or_flat_move")
+        hard_reasons.append("negative_or_flat_move")
     elif cumulative <= threshold:
-        reasons.append("below_threshold")
+        hard_reasons.append("below_threshold")
     if streak < min_streak:
-        reasons.append("positive_streak_not_confirmed")
+        soft_reasons.append("positive_streak_not_confirmed")
     if not higher_highs:
-        reasons.append("higher_highs_not_confirmed")
+        soft_reasons.append("higher_highs_not_confirmed")
     if not higher_lows:
-        reasons.append("higher_lows_not_confirmed")
+        soft_reasons.append("higher_lows_not_confirmed")
     if not above_mean:
-        reasons.append("price_below_previous_mean")
+        soft_reasons.append("price_below_previous_mean")
     if not mean_rising:
-        reasons.append("previous_mean_not_rising")
+        soft_reasons.append("previous_mean_not_rising")
+
+    structure = _structure_score(
+        streak=streak,
+        min_streak=min_streak,
+        higher_highs=higher_highs,
+        higher_lows=higher_lows,
+        above_mean=above_mean,
+        mean_rising=mean_rising,
+    )
+    confirmed = not hard_reasons
+    ranked = compute_ranking_score(cumulative, structure) if confirmed else 0.0
 
     # A break is meaningful only after enough history exists to evaluate the
     # structure.  It is intentionally independent of entry confirmation so an
     # open trade can be exited even when a fresh trend has not formed.
     trend_break = not above_mean or (len(lows) >= 2 and last_low < previous_low)
-    confirmed = not reasons
     return TrendAssessment(
         current_price=current,
         reference_price=reference,
@@ -270,10 +336,13 @@ def assess_trend(
         previous_mean_rising=mean_rising,
         higher_highs=higher_highs,
         higher_lows=higher_lows,
+        structure_score=structure,
+        ranking_score=ranked,
         trend_confirmed=confirmed,
         trend_break=trend_break,
         sufficient_history=True,
-        reason_codes=tuple(reasons),
+        reason_codes=tuple(hard_reasons + soft_reasons),
+        soft_reason_codes=tuple(soft_reasons),
     )
 
 
@@ -300,6 +369,19 @@ def trend_signal(
         label = "Trend Break"
     else:
         label = "Neutral"
+    stop_pct = float(stop_loss_percent or 0.0)
+    trail_pct = float(trailing_stop_percent or 0.0)
+    stop_price = (
+        assessment.current_price * (1.0 - stop_pct / 100.0)
+        if assessment.current_price > 0 and stop_pct > 0
+        else 0.0
+    )
+    if assessment.entry_allowed:
+        reason_text = "threshold_exceeded"
+        if assessment.soft_reason_codes:
+            reason_text = reason_text + "," + ",".join(assessment.soft_reason_codes)
+    else:
+        reason_text = ",".join(assessment.reason_codes) or "not_confirmed"
     result = assessment.to_dict()
     result.update(
         {
@@ -312,18 +394,22 @@ def trend_signal(
             "threshold_percent": float(threshold_percent),
             "min_consecutive_positive_scans": int(min_consecutive_positive_scans),
             "trend_lookback_scans": int(trend_lookback_scans),
-            "stop_loss_percent": float(stop_loss_percent),
-            "trailing_stop_percent": float(trailing_stop_percent),
-            "reasons": ",".join(assessment.reason_codes) or "trend_confirmed",
+            "stop_loss_percent": stop_pct,
+            "trailing_stop_percent": trail_pct,
+            "StopLossPrice": stop_price,
+            "TrailingStopPercent": trail_pct,
+            "reasons": reason_text,
         }
     )
     return result
 
 
 __all__ = [
+    "STRUCTURE_SCORE_WEIGHT",
     "TrendAssessment",
     "assess_trend",
     "clean_prices",
+    "compute_ranking_score",
     "price_from_scan",
     "trend_signal",
 ]
